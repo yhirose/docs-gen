@@ -1,0 +1,16 @@
+# Syntax highlight settings for code blocks.
+#
+# To customize the theme, copy it into your project first:
+#   docs-gen theme install default <project-dir>
+# Then edit this file freely.
+
+[highlight]
+# Code highlight theme for dark mode. Required.
+# Available: base16-ocean.dark, base16-eighties.dark, base16-mocha.dark,
+#            Solarized (dark)
+dark_theme = "base16-eighties.dark"
+
+# Code highlight theme for light mode. Optional.
+# When set, both dark and light code blocks are rendered and toggled via CSS.
+# Available: base16-ocean.light, InspiredGitHub, Solarized (light)
+light_theme = "InspiredGitHub"

@@ -1,0 +1,6 @@
+work/
+target/
+*.swp
+*.dSYM
+!/.gitattributes
+!/.github

@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+#
+# Release a new version of docs-gen.
+#
+# Usage: scripts/release X.Y.Z
+#
+# This script:
+#   1. Validates the version format and checks for uncommitted changes
+#   2. Verifies that the latest CI on main has passed (via gh CLI)
+#   3. Ensures the new version is greater than the current one
+#   4. Updates Cargo.toml, commits, tags, and pushes
+#
+# After push, the Publish workflow (publish.yml) runs CI again
+# and publishes to crates.io if all checks pass.
+
+set -euo pipefail
+
+VERSION="${1:-}"
+
+# --- Validate input ---
+
+if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "Usage: scripts/release X.Y.Z"
+    exit 1
+fi
+
+if [ -n "$(git status --porcelain)" ]; then
+    echo "Error: working directory is not clean"
+    exit 1
+fi
+
+# --- Check CI status on main ---
+
+CI_STATUS=$(gh run list --workflow=ci.yml --branch=main --limit=1 --json conclusion --jq '.[0].conclusion')
+if [ "$CI_STATUS" != "success" ]; then
+    echo "Error: latest CI on main is not successful (status: $CI_STATUS)"
+    exit 1
+fi
+
+# --- Verify version is newer ---
+
+CURRENT=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
+IFS='.' read -r CUR_MAJ CUR_MIN CUR_PAT <<< "$CURRENT"
+IFS='.' read -r NEW_MAJ NEW_MIN NEW_PAT <<< "$VERSION"
+CUR_NUM=$((CUR_MAJ * 10000 + CUR_MIN * 100 + CUR_PAT))
+NEW_NUM=$((NEW_MAJ * 10000 + NEW_MIN * 100 + NEW_PAT))
+if [ "$NEW_NUM" -le "$CUR_NUM" ]; then
+    echo "Error: new version $VERSION must be greater than current $CURRENT"
+    exit 1
+fi
+
+# --- Release ---
+
+sed -i '' "s/^version = \".*\"/version = \"$VERSION\"/" Cargo.toml
+cargo check --quiet  # update Cargo.lock
+git add Cargo.toml Cargo.lock
+git commit -m "Release v$VERSION"
+git tag "v$VERSION"
+git push && git push --tags
+echo "Released v$VERSION — CI will run and publish to crates.io"

@@ -1,0 +1,61 @@
+# ─────────────────────────────────────────────
+# docs-gen configuration
+# ─────────────────────────────────────────────
+
+[system]
+# Built-in theme to use. Run `docs-gen theme list` to see available themes.
+# To customize a theme, copy its files into your project:
+#   docs-gen theme install <theme-name> <project-dir>
+theme = "default"
+
+# List of language codes for this site. The first entry is the default language.
+# Single language:   langs = ["en"]
+# Multi-language:    langs = ["en", "ja"]
+langs = ["en"]
+
+[site]
+# Site title shown in the browser tab and the header.
+title = "docs-gen"
+
+# Optional version label shown next to the title in the header.
+# Remove or comment out if not needed.
+version = "0.1.0"
+
+# Hostname used to build canonical URLs (e.g. for sitemaps).
+# Remove or comment out if you don't need absolute URLs.
+hostname = "https://yhirose.github.io"
+
+# URL path prefix for the site (e.g. "/my-project" for GitHub Pages project sites).
+# Use "" (empty string) if the site is served from the root.
+base_path = "/docs-gen"
+
+# Text displayed in the footer on every page. HTML is allowed.
+footer_message = "© 2026 Yuji Hirose. All rights reserved."
+
+# ─────────────────────────────────────────────
+# Navigation links shown in the header.
+# Each [[nav]] entry appears as a link in the top nav bar.
+#
+# Fields:
+#   label    — link text (required)
+#   path     — path relative to /<base_path>/<lang>/  (e.g. "users-guide/")
+#   url      — absolute or external URL               (e.g. "https://github.com/...")
+#   icon_svg — optional inline SVG icon string
+#
+# Use `path` for internal pages, `url` for external links.
+# ─────────────────────────────────────────────
+[[nav]]
+label = "User's Guide"
+path = "users-guide/"
+icon_svg = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-book"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>'
+
+[[nav]]
+label = "Developer's Guide"
+path = "developers-guide/"
+icon_svg = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-tool"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg>'
+
+# Example: external link (uncomment and fill in to add a GitHub link)
+[[nav]]
+label = "GitHub"
+url = "https://github.com/yhirose/docs-gen"
+icon_svg = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></svg>'
