@@ -35,14 +35,15 @@ This generates `config.toml` and sample pages:
 my-docs/
 ├── config.toml        # Site title, URL, footer, navigation
 └── pages/
-    └── en/            # Add .md files anywhere under here
-        ├── index.md       # Homepage
-        ├── users-guide/       # Section (has its own sidebar)
-        │   ├── index.md
-        │   └── *.md           # Pages with frontmatter
-        └── developers-guide/  # Section for contributors
-            ├── index.md
-            └── *.md           # Pages with frontmatter
+    ├── en/            # English pages
+    │   ├── index.md       # Homepage
+    │   ├── users-guide/       # Section (has its own sidebar)
+    │   │   ├── index.md
+    │   │   └── *.md           # Pages with frontmatter
+    │   └── developers-guide/  # Section for contributors
+    │       ├── index.md
+    │       └── *.md           # Pages with frontmatter
+    └── ja/            # Japanese pages (same structure as en/)
 ```
 
 ### 2. Preview locally
@@ -60,7 +61,7 @@ Update the settings for your site. The generated file includes comments explaini
 ```toml
 [system]
 theme = "default"                          # Run `docs-gen theme list` to see options
-langs = ["en"]                             # ["en", "ja"] for multi-language
+langs = ["en", "ja"]                       # Language codes (first is default)
 
 [site]
 title = "My Docs"

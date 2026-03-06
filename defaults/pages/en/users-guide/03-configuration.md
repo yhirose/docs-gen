@@ -12,7 +12,7 @@ All site settings live in `config.toml` at the project root.
 ```toml
 [system]
 theme = "default"
-langs = ["en"]
+langs = ["en", "ja"]
 
 [site]
 title = "My Project"

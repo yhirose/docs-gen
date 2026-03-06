@@ -19,14 +19,15 @@ This creates the following structure:
 my-docs/
 ├── config.toml              # Site settings
 └── pages/
-    └── en/
-        ├── index.md             # Homepage
-        ├── users-guide/         # Section (has its own sidebar)
-        │   ├── index.md
-        │   └── *.md
-        └── developers-guide/    # Section for contributors
-            ├── index.md
-            └── *.md
+    ├── en/                      # English pages
+    │   ├── index.md             # Homepage
+    │   ├── users-guide/         # Section (has its own sidebar)
+    │   │   ├── index.md
+    │   │   └── *.md
+    │   └── developers-guide/    # Section for contributors
+    │       ├── index.md
+    │       └── *.md
+    └── ja/                      # Japanese pages (same structure)
 ```
 
 You can customize the theme later — see [Customizing Themes](../04-customizing-themes/).

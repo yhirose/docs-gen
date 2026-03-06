@@ -11,7 +11,7 @@ theme = "default"
 # List of language codes for this site. The first entry is the default language.
 # Single language:   langs = ["en"]
 # Multi-language:    langs = ["en", "ja"]
-langs = ["en"]
+langs = ["en", "ja"]
 
 [site]
 # Site title shown in the browser tab and the header.
