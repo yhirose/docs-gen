@@ -19,7 +19,7 @@
   --text-inline-code: #c8c8c8;
   --border: #333;
   --border-code: #2a2a2a;
-  --link: #d0d0d0;
+  --link: #e0e0e0;
   --heading: #e8e8e8;
   --heading-link: #c0c0c0;
   --header-nav-link: #aaa;
@@ -46,7 +46,7 @@
   --text-inline-code: #3a3a3a;
   --border: #d0cec9;
   --border-code: #d8d6d2;
-  --link: #444;
+  --link: #222;
   --heading: #1a1a1a;
   --heading-link: #555;
   --header-nav-link: #666;
@@ -79,6 +79,16 @@ a {
 
 a:hover {
   text-decoration: underline;
+}
+
+.content article a {
+  text-decoration: underline;
+  text-decoration-color: var(--text-muted);
+  text-underline-offset: 2px;
+}
+
+.content article a:hover {
+  text-decoration-color: var(--link);
 }
 
 /* ---- Header ---- */
