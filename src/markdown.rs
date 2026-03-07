@@ -56,6 +56,9 @@ impl MarkdownRenderer {
         let mut in_code_block = false;
         let mut code_lang = String::new();
         let mut code_buf = String::new();
+        let mut in_heading = false;
+        let mut heading_level = pulldown_cmark::HeadingLevel::H1;
+        let mut heading_text = String::new();
         let mut events: Vec<Event> = Vec::new();
 
         for event in parser {
@@ -75,6 +78,36 @@ impl MarkdownRenderer {
                 }
                 Event::Text(text) if in_code_block => {
                     code_buf.push_str(&text);
+                }
+                Event::Start(Tag::Heading { level, .. }) => {
+                    in_heading = true;
+                    heading_level = level;
+                    heading_text.clear();
+                }
+                Event::End(TagEnd::Heading(_)) => {
+                    in_heading = false;
+                    let slug = slugify(&heading_text);
+                    let tag = match heading_level {
+                        pulldown_cmark::HeadingLevel::H1 => "h1",
+                        pulldown_cmark::HeadingLevel::H2 => "h2",
+                        pulldown_cmark::HeadingLevel::H3 => "h3",
+                        pulldown_cmark::HeadingLevel::H4 => "h4",
+                        pulldown_cmark::HeadingLevel::H5 => "h5",
+                        pulldown_cmark::HeadingLevel::H6 => "h6",
+                    };
+                    let html = format!(
+                        "<{tag} id=\"{slug}\">{text}</{tag}>\n",
+                        tag = tag,
+                        slug = slug,
+                        text = heading_text,
+                    );
+                    events.push(Event::Html(html.into()));
+                }
+                Event::Text(text) if in_heading => {
+                    heading_text.push_str(&text);
+                }
+                Event::Code(text) if in_heading => {
+                    heading_text.push_str(&format!("<code>{}</code>", text));
                 }
                 other => events.push(other),
             }
@@ -138,6 +171,39 @@ impl MarkdownRenderer {
     }
 }
 
+fn slugify(text: &str) -> String {
+    // Strip HTML tags for slug generation
+    let mut plain = String::new();
+    let mut in_tag = false;
+    for ch in text.chars() {
+        match ch {
+            '<' => in_tag = true,
+            '>' => in_tag = false,
+            _ if !in_tag => plain.push(ch),
+            _ => {}
+        }
+    }
+
+    plain
+        .to_lowercase()
+        .chars()
+        .map(|c| {
+            if c.is_alphanumeric() {
+                c
+            } else if c == ' ' || c == '-' || c == '_' {
+                '-'
+            } else {
+                '\0'
+            }
+        })
+        .filter(|&c| c != '\0')
+        .collect::<String>()
+        .split('-')
+        .filter(|s| !s.is_empty())
+        .collect::<Vec<_>>()
+        .join("-")
+}
+
 fn escape_html(s: &str) -> String {
     s.replace('&', "&amp;")
         .replace('<', "&lt;")
@@ -195,8 +261,23 @@ mod tests {
     fn test_render_heading() {
         let renderer = MarkdownRenderer::new("base16-ocean.dark", None);
         let html = renderer.render("# Title");
-        assert!(html.contains("<h1>"));
+        assert!(html.contains("<h1 id=\"title\">"));
         assert!(html.contains("Title"));
+    }
+
+    #[test]
+    fn test_render_heading_slug() {
+        let renderer = MarkdownRenderer::new("base16-ocean.dark", None);
+        let html = renderer.render("## Syntax Highlighting");
+        assert!(html.contains("<h2 id=\"syntax-highlighting\">"));
+    }
+
+    #[test]
+    fn test_slugify() {
+        assert_eq!(super::slugify("Syntax Highlighting"), "syntax-highlighting");
+        assert_eq!(super::slugify("Hello, World!"), "hello-world");
+        assert_eq!(super::slugify("  Multiple   Spaces  "), "multiple-spaces");
+        assert_eq!(super::slugify("<code>foo</code> bar"), "foo-bar");
     }
 
     #[test]
