@@ -1,6 +1,8 @@
 work/
 target/
+plans/
 *.swp
 *.dSYM
+AGENTS.md
 !/.gitattributes
 !/.github
