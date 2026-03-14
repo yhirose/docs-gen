@@ -55,6 +55,9 @@ pub fn run(src: &Path) -> Result<bool> {
 
     let mut diagnostics: Vec<Diagnostic> = Vec::new();
 
+    let default_lang = config.system.langs.first().map(|s| s.as_str()).unwrap_or("en");
+    let default_pages_dir = src.join("pages").join(default_lang);
+
     for lang in &config.system.langs {
         let pages_dir = src.join("pages").join(lang);
         if !pages_dir.exists() {
@@ -68,8 +71,9 @@ pub fn run(src: &Path) -> Result<bool> {
         check_order_duplicates(&pages, lang, &mut diagnostics);
         check_order_unset(&pages, lang, &mut diagnostics);
 
-        // Link checks
-        check_internal_links(&pages, &pages_dir, lang, &mut diagnostics);
+        // Link checks — for non-default languages, fall back to default lang dir for images
+        let fallback_dir = if lang != default_lang { Some(default_pages_dir.as_path()) } else { None };
+        check_internal_links(&pages, &pages_dir, lang, fallback_dir, &mut diagnostics);
 
         // Unreferenced page check
         check_unreferenced_pages(&pages, &pages_dir, lang, &mut diagnostics);
@@ -204,6 +208,7 @@ fn check_internal_links(
     pages: &[CheckPage],
     pages_dir: &Path,
     lang: &str,
+    fallback_pages_dir: Option<&Path>,
     diags: &mut Vec<Diagnostic>,
 ) {
     for page in pages {
@@ -260,17 +265,36 @@ fn check_internal_links(
             };
 
             if !exists {
-                let severity = if is_image {
-                    Severity::Warning
+                // For non-default languages, check if image exists in default lang dir
+                let fallback_exists = if is_image {
+                    if let Some(fb_dir) = fallback_pages_dir {
+                        // Reconstruct the path relative to pages_dir, then check in fallback
+                        if let Ok(rel) = resolved.strip_prefix(pages_dir) {
+                            let fb_path = fb_dir.join(rel);
+                            fb_path.exists()
+                        } else {
+                            false
+                        }
+                    } else {
+                        false
+                    }
                 } else {
-                    Severity::Error
+                    false
                 };
-                let kind = if is_image { "image" } else { "link" };
-                diags.push(Diagnostic {
-                    severity,
-                    file: format!("[{}] {}", lang, page.rel_path),
-                    message: format!("broken {} target: {}", kind, dest),
-                });
+
+                if !fallback_exists {
+                    let severity = if is_image {
+                        Severity::Warning
+                    } else {
+                        Severity::Error
+                    };
+                    let kind = if is_image { "image" } else { "link" };
+                    diags.push(Diagnostic {
+                        severity,
+                        file: format!("[{}] {}", lang, page.rel_path),
+                        message: format!("broken {} target: {}", kind, dest),
+                    });
+                }
             }
         }
     }
@@ -518,7 +542,7 @@ mod tests {
         }];
 
         let mut diags = Vec::new();
-        check_internal_links(&pages, tmp.path(), "en", &mut diags);
+        check_internal_links(&pages, tmp.path(), "en", None, &mut diags);
         assert_eq!(diags.len(), 1);
         assert_eq!(diags[0].severity, Severity::Error);
         assert!(diags[0].message.contains("broken link"));
@@ -669,7 +693,7 @@ mod tests {
         }];
 
         let mut diags = Vec::new();
-        check_internal_links(&pages, tmp.path(), "en", &mut diags);
+        check_internal_links(&pages, tmp.path(), "en", None, &mut diags);
         assert!(diags.is_empty(), "Valid colocated image should not produce diagnostics, got: {:?}", diags);
     }
 
@@ -692,7 +716,7 @@ mod tests {
         }];
 
         let mut diags = Vec::new();
-        check_internal_links(&pages, tmp.path(), "en", &mut diags);
+        check_internal_links(&pages, tmp.path(), "en", None, &mut diags);
         assert_eq!(diags.len(), 1);
         assert_eq!(diags[0].severity, Severity::Warning);
         assert!(diags[0].message.contains("broken image"));
@@ -725,7 +749,44 @@ mod tests {
         }];
 
         let mut diags = Vec::new();
-        check_internal_links(&pages, tmp.path(), "en", &mut diags);
+        check_internal_links(&pages, tmp.path(), "en", None, &mut diags);
         assert!(diags.is_empty());
+    }
+
+    #[test]
+    fn test_image_fallback_to_default_lang() {
+        let tmp = tempfile::tempdir().unwrap();
+
+        // Set up default lang (en) with an image
+        let en_guide = tmp.path().join("en").join("guide");
+        fs::create_dir_all(&en_guide).unwrap();
+        fs::write(en_guide.join("screenshot.png"), "fake-png").unwrap();
+
+        // Set up non-default lang (ja) without the image
+        let ja_guide = tmp.path().join("ja").join("guide");
+        fs::create_dir_all(&ja_guide).unwrap();
+        let page_path = ja_guide.join("page.md");
+        fs::write(&page_path, "").unwrap();
+
+        let ja_dir = tmp.path().join("ja");
+        let en_dir = tmp.path().join("en");
+
+        let pages = vec![CheckPage {
+            frontmatter: Frontmatter { title: "Test".into(), order: 1, status: None },
+            body: "![img](../screenshot.png)".to_string(),
+            rel_path: "guide/page.md".to_string(),
+            abs_path: page_path,
+            section: "guide".to_string(),
+        }];
+
+        // Without fallback → warning
+        let mut diags = Vec::new();
+        check_internal_links(&pages, &ja_dir, "ja", None, &mut diags);
+        assert_eq!(diags.len(), 1, "Should warn without fallback");
+
+        // With fallback to en → no warning
+        let mut diags = Vec::new();
+        check_internal_links(&pages, &ja_dir, "ja", Some(&en_dir), &mut diags);
+        assert!(diags.is_empty(), "Should not warn when image exists in default lang, got: {:?}", diags);
     }
 }
