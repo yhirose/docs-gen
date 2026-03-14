@@ -68,4 +68,74 @@ pages/en/
 [はじめよう](01-getting-started/)
 ```
 
+### 画像とファイル（コロケーション）
+
+画像などのファイルをMarkdownページと同じディレクトリに置くと、ビルド時に自動的に正しい場所にコピーされます。
+
+```text
+pages/ja/guide/
+├── index.md
+├── 01-intro.md
+├── diagram.png        ← このセクションに配置
+└── screenshot.jpg
+```
+
+**セクションの `index.md` から参照する場合:**
+
+```markdown
+![Diagram](./diagram.png)
+```
+
+**通常のページ（例: `01-intro.md`）から参照する場合:**
+
+各ページは独自のディレクトリにレンダリングされるため（`01-intro/index.html`）、`../` で一階層上がります:
+
+```markdown
+![Screenshot](../screenshot.jpg)
+```
+
+**`static/` を使うべき場合:** サイトロゴのように多くのページで共有するファイルは `static/` ディレクトリに置きます。特定のページやセクションに属するファイルにはコロケーションを使います。
+
+### 画像のサイズ指定
+
+画像はデフォルトでコンテンツ幅に収まります（`max-width: 100%`）。表示サイズを変えたいときは、画像URLに `#fragment` を付けます:
+
+```markdown
+![Screenshot](./screenshot.png#small)
+![Screenshot](./screenshot.png#half)
+![Screenshot](./screenshot.png#large)
+```
+
+| Fragment | 最大幅 |
+|----------|--------|
+| *(なし)* | 100%   |
+| `#small` | 300px  |
+| `#half`  | 50%    |
+| `#large` | 80%    |
+
+画像を中央揃えにするには、fragmentに `-center` を付けます:
+
+```markdown
+![Screenshot](./screenshot.png#half-center)
+```
+
+`#center` だけでもフル幅の中央揃えになります。
+
+### 多言語での画像共有
+
+多言語サイトでは、デフォルト言語（`langs` の最初のエントリ）のディレクトリにある画像が他の言語でも自動的に使えます。言語固有の画像（ローカライズされたスクリーンショットなど）がある場合だけ、その言語のディレクトリに置いてください。
+
+```text
+pages/
+├── en/
+│   └── guide/
+│       ├── index.md
+│       └── screenshot.png   ← 全言語で共有される
+└── ja/
+    └── guide/
+        └── index.md         ← コピーなしで screenshot.png を参照できる
+```
+
+同名のファイルがその言語のディレクトリにあれば、そちらが優先されます。
+
 次へ: [設定](../03-configuration/)

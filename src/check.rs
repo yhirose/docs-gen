@@ -647,6 +647,58 @@ mod tests {
     }
 
     #[test]
+    fn test_colocated_image_link_valid() {
+        let tmp = tempfile::tempdir().unwrap();
+        let guide_dir = tmp.path().join("guide");
+        fs::create_dir_all(&guide_dir).unwrap();
+
+        let page_path = guide_dir.join("page.md");
+        fs::write(&page_path, "").unwrap();
+        fs::write(guide_dir.join("screenshot.png"), "fake-png").unwrap();
+
+        // Non-index page renders as guide/page/index.html
+        // Image reference ./screenshot.png resolves from guide/page/ → guide/page/screenshot.png
+        // But the actual file is at guide/screenshot.png
+        // So the correct reference from a non-index page is ../screenshot.png
+        let pages = vec![CheckPage {
+            frontmatter: Frontmatter { title: "Test".into(), order: 1, status: None },
+            body: "![img](../screenshot.png)".to_string(),
+            rel_path: "guide/page.md".to_string(),
+            abs_path: page_path,
+            section: "guide".to_string(),
+        }];
+
+        let mut diags = Vec::new();
+        check_internal_links(&pages, tmp.path(), "en", &mut diags);
+        assert!(diags.is_empty(), "Valid colocated image should not produce diagnostics, got: {:?}", diags);
+    }
+
+    #[test]
+    fn test_colocated_image_link_broken() {
+        let tmp = tempfile::tempdir().unwrap();
+        let guide_dir = tmp.path().join("guide");
+        fs::create_dir_all(&guide_dir).unwrap();
+
+        let page_path = guide_dir.join("page.md");
+        fs::write(&page_path, "").unwrap();
+        // No screenshot.png file exists
+
+        let pages = vec![CheckPage {
+            frontmatter: Frontmatter { title: "Test".into(), order: 1, status: None },
+            body: "![img](../nonexistent.png)".to_string(),
+            rel_path: "guide/page.md".to_string(),
+            abs_path: page_path,
+            section: "guide".to_string(),
+        }];
+
+        let mut diags = Vec::new();
+        check_internal_links(&pages, tmp.path(), "en", &mut diags);
+        assert_eq!(diags.len(), 1);
+        assert_eq!(diags[0].severity, Severity::Warning);
+        assert!(diags[0].message.contains("broken image"));
+    }
+
+    #[test]
     fn test_valid_link_no_diagnostic() {
         let tmp = tempfile::tempdir().unwrap();
         let guide_dir = tmp.path().join("guide");

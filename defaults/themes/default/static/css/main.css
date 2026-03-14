@@ -375,6 +375,26 @@ a:hover {
   color: var(--text-muted);
 }
 
+.content article img {
+  max-width: 100%;
+  height: auto;
+  margin: 16px 0;
+  border-radius: 4px;
+  box-shadow: 4px 4px 8px rgba(0, 0, 0, 0.09);
+}
+
+html[data-theme="light"] .content article img {
+  box-shadow: 4px 4px 8px rgba(0, 0, 0, 0.25);
+}
+
+.content article img[src$='#small'],
+.content article img[src$='#small-center'] { max-width: 300px; }
+.content article img[src$='#half'],
+.content article img[src$='#half-center']  { max-width: 50%; }
+.content article img[src$='#large'],
+.content article img[src$='#large-center'] { max-width: 80%; }
+.content article img[src*='#center'] { display: block; margin-inline: auto; }
+
 /* Code block theme switching: show dark by default, swap on light mode */
 .code-block-wrapper > [data-code-theme="light"] {
   display: none;

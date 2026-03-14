@@ -4,6 +4,7 @@ use crate::markdown::{Frontmatter, MarkdownRenderer};
 use crate::utils::copy_dir_recursive;
 use anyhow::{Context, Result};
 use serde::Serialize;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use tera::Tera;
@@ -56,6 +57,11 @@ struct Page {
     section: String,
 }
 
+struct ColocatedFile {
+    src_path: PathBuf,
+    out_path: PathBuf,
+}
+
 pub fn build(src: &Path, out: &Path, theme_override: Option<&str>) -> Result<()> {
     let config = SiteConfig::load(src, theme_override)?;
     let renderer = MarkdownRenderer::new(
@@ -88,8 +94,15 @@ pub fn build(src: &Path, out: &Path, theme_override: Option<&str>) -> Result<()>
     // Collect page data entries for pages-data.json across all languages
     let mut page_data_entries: Vec<PageDataEntry> = Vec::new();
 
-    // Build each language
+    // Colocated files from the primary (default) language, keyed by relative source path.
+    // Maps to (source_path, output_suffix) for fallback copying to other languages.
+    let default_lang = config.system.default_lang();
+    let multi_lang = !single_lang;
+    let mut primary_colocated: HashMap<PathBuf, (PathBuf, PathBuf)> = HashMap::new();
+
+    // Build each language (default_lang is always first in config.system.langs)
     for lang in &config.system.langs {
+        let is_primary = lang.as_str() == default_lang;
         let pages_dir = src.join("pages").join(lang);
         if !pages_dir.exists() {
             eprintln!("Warning: pages directory not found for lang '{}', skipping", lang);
@@ -97,6 +110,52 @@ pub fn build(src: &Path, out: &Path, theme_override: Option<&str>) -> Result<()>
         }
 
         let pages = collect_pages(&pages_dir, lang, out, &renderer, &config.site.base_path, single_lang)?;
+
+        // Copy colocated files (images, etc.) next to their pages
+        let colocated = collect_colocated_files(&pages_dir, &pages)?;
+
+        // Track which relative paths this language has (only needed for non-primary)
+        let mut lang_rel_paths: HashSet<PathBuf> = HashSet::new();
+
+        let lang_out_prefix = out.join(lang.as_str());
+
+        for cf in &colocated {
+            if let Some(parent) = cf.out_path.parent() {
+                fs::create_dir_all(parent)?;
+            }
+            fs::copy(&cf.src_path, &cf.out_path)
+                .with_context(|| format!("Failed to copy colocated file {}", cf.src_path.display()))?;
+
+            if multi_lang {
+                let rel = cf.src_path.strip_prefix(&pages_dir)
+                    .unwrap_or(&cf.src_path)
+                    .to_path_buf();
+
+                if is_primary {
+                    let out_suffix = cf.out_path.strip_prefix(&lang_out_prefix)
+                        .unwrap_or(&cf.out_path)
+                        .to_path_buf();
+                    primary_colocated.insert(rel, (cf.src_path.clone(), out_suffix));
+                } else {
+                    lang_rel_paths.insert(rel);
+                }
+            }
+        }
+
+        // For non-primary languages, copy missing colocated files from primary language
+        if multi_lang && !is_primary && !primary_colocated.is_empty() {
+            for (rel, (primary_src, out_suffix)) in &primary_colocated {
+                if !lang_rel_paths.contains(rel) {
+                    let dest = out.join(lang.as_str()).join(out_suffix);
+                    if let Some(parent) = dest.parent() {
+                        fs::create_dir_all(parent)?;
+                    }
+                    fs::copy(primary_src, &dest)
+                        .with_context(|| format!("Failed to copy fallback colocated file {}", primary_src.display()))?;
+                }
+            }
+        }
+
         let nav = build_nav(&pages);
 
         for page in &pages {
@@ -288,6 +347,97 @@ fn collect_pages(
     }
 
     Ok(pages)
+}
+
+/// Collect non-Markdown files from the pages directory for colocation.
+/// These files (images, etc.) are copied alongside their page's HTML output.
+fn collect_colocated_files(
+    pages_dir: &Path,
+    pages: &[Page],
+) -> Result<Vec<ColocatedFile>> {
+    struct DirInfo {
+        md_count: usize,
+        has_index: bool,
+        page_out_dir: Option<PathBuf>,
+    }
+
+    let mut result = Vec::new();
+
+    // Group pages by their source directory to determine output mapping
+    let mut dirs: HashMap<PathBuf, DirInfo> = HashMap::new();
+
+    for page in pages {
+        let src_path = pages_dir.join(&page.rel_path);
+        let dir = src_path.parent().unwrap_or(pages_dir).to_path_buf();
+
+        let info = dirs.entry(dir).or_insert(DirInfo {
+            md_count: 0,
+            has_index: false,
+            page_out_dir: None,
+        });
+        info.md_count += 1;
+        if page.rel_path.ends_with("index.md") {
+            info.has_index = true;
+        }
+        // out_path is e.g. out/guide/01-intro/index.html — parent gives the page's output dir
+        if let Some(page_out_dir) = page.out_path.parent() {
+            info.page_out_dir = Some(page_out_dir.to_path_buf());
+        }
+    }
+
+    // Walk the pages directory for non-.md files
+    for entry in WalkDir::new(pages_dir)
+        .into_iter()
+        .filter_map(|e| e.ok())
+        .filter(|e| e.file_type().is_file())
+    {
+        let path = entry.path();
+
+        // Skip .md files (they are pages)
+        if path.extension().map_or(false, |ext| ext == "md") {
+            continue;
+        }
+
+        // Skip hidden files
+        if path
+            .file_name()
+            .map_or(false, |f| f.to_string_lossy().starts_with('.'))
+        {
+            continue;
+        }
+
+        let file_dir = path.parent().unwrap_or(pages_dir).to_path_buf();
+        let file_name = path.file_name().unwrap();
+
+        // Determine output directory for this colocated file
+        let out_dir = if let Some(info) = dirs.get(&file_dir) {
+            if info.has_index {
+                // Directory has index.md → copy to the section output directory
+                info.page_out_dir.clone()
+            } else if info.md_count == 1 {
+                // Single .md file → copy into that page's output directory
+                info.page_out_dir.clone()
+            } else {
+                // Multiple .md files → copy to the parent (section) directory
+                info.page_out_dir
+                    .as_ref()
+                    .and_then(|p| p.parent())
+                    .map(|p| p.to_path_buf())
+            }
+        } else {
+            // No .md files in this directory (orphan file in a subdirectory) — skip
+            None
+        };
+
+        if let Some(out_dir) = out_dir {
+            result.push(ColocatedFile {
+                src_path: path.to_path_buf(),
+                out_path: out_dir.join(file_name),
+            });
+        }
+    }
+
+    Ok(result)
 }
 
 fn extract_section(url: &str, base_path: &str, single_lang: bool) -> String {
@@ -605,5 +755,183 @@ mod tests {
     #[test]
     fn test_extract_section_multi_lang_with_base() {
         assert_eq!(extract_section("/docs/en/guide/", "/docs", false), "guide");
+    }
+
+    // ── Colocation tests ─────────────────────────────────────────
+
+    #[test]
+    fn test_colocated_single_md_copies_to_page_dir() {
+        let tmp = tempfile::tempdir().unwrap();
+        let pages_dir = tmp.path().join("pages");
+        let guide_dir = pages_dir.join("guide");
+        fs::create_dir_all(&guide_dir).unwrap();
+
+        // Single .md file + an image
+        fs::write(guide_dir.join("01-intro.md"), "---\ntitle: Intro\n---\n").unwrap();
+        fs::write(guide_dir.join("screenshot.png"), "fake-png").unwrap();
+
+        let out_dir = tmp.path().join("out");
+        let pages = vec![Page {
+            frontmatter: Frontmatter { title: "Intro".into(), order: 1, status: None },
+            html_content: String::new(),
+            url: "/guide/01-intro/".into(),
+            out_path: out_dir.join("guide").join("01-intro").join("index.html"),
+            rel_path: "guide/01-intro.md".into(),
+            section: "guide".into(),
+        }];
+
+        let colocated = collect_colocated_files(&pages_dir, &pages).unwrap();
+        assert_eq!(colocated.len(), 1);
+        assert_eq!(
+            colocated[0].out_path,
+            out_dir.join("guide").join("01-intro").join("screenshot.png")
+        );
+    }
+
+    #[test]
+    fn test_colocated_index_md_copies_to_section_dir() {
+        let tmp = tempfile::tempdir().unwrap();
+        let pages_dir = tmp.path().join("pages");
+        let guide_dir = pages_dir.join("guide");
+        fs::create_dir_all(&guide_dir).unwrap();
+
+        fs::write(guide_dir.join("index.md"), "---\ntitle: Guide\n---\n").unwrap();
+        fs::write(guide_dir.join("diagram.png"), "fake-png").unwrap();
+
+        let out_dir = tmp.path().join("out");
+        let pages = vec![Page {
+            frontmatter: Frontmatter { title: "Guide".into(), order: 0, status: None },
+            html_content: String::new(),
+            url: "/guide/".into(),
+            out_path: out_dir.join("guide").join("index.html"),
+            rel_path: "guide/index.md".into(),
+            section: "guide".into(),
+        }];
+
+        let colocated = collect_colocated_files(&pages_dir, &pages).unwrap();
+        assert_eq!(colocated.len(), 1);
+        assert_eq!(
+            colocated[0].out_path,
+            out_dir.join("guide").join("diagram.png")
+        );
+    }
+
+    #[test]
+    fn test_colocated_multiple_md_copies_to_parent_dir() {
+        let tmp = tempfile::tempdir().unwrap();
+        let pages_dir = tmp.path().join("pages");
+        let guide_dir = pages_dir.join("guide");
+        fs::create_dir_all(&guide_dir).unwrap();
+
+        fs::write(guide_dir.join("01-intro.md"), "---\ntitle: Intro\n---\n").unwrap();
+        fs::write(guide_dir.join("02-setup.md"), "---\ntitle: Setup\n---\n").unwrap();
+        fs::write(guide_dir.join("screenshot.png"), "fake-png").unwrap();
+
+        let out_dir = tmp.path().join("out");
+        let pages = vec![
+            Page {
+                frontmatter: Frontmatter { title: "Intro".into(), order: 1, status: None },
+                html_content: String::new(),
+                url: "/guide/01-intro/".into(),
+                out_path: out_dir.join("guide").join("01-intro").join("index.html"),
+                rel_path: "guide/01-intro.md".into(),
+                section: "guide".into(),
+            },
+            Page {
+                frontmatter: Frontmatter { title: "Setup".into(), order: 2, status: None },
+                html_content: String::new(),
+                url: "/guide/02-setup/".into(),
+                out_path: out_dir.join("guide").join("02-setup").join("index.html"),
+                rel_path: "guide/02-setup.md".into(),
+                section: "guide".into(),
+            },
+        ];
+
+        let colocated = collect_colocated_files(&pages_dir, &pages).unwrap();
+        assert_eq!(colocated.len(), 1);
+        // Should be in guide/ (parent), not guide/01-intro/ or guide/02-setup/
+        assert_eq!(
+            colocated[0].out_path,
+            out_dir.join("guide").join("screenshot.png")
+        );
+    }
+
+    #[test]
+    fn test_colocated_md_files_excluded() {
+        let tmp = tempfile::tempdir().unwrap();
+        let pages_dir = tmp.path().join("pages");
+        let guide_dir = pages_dir.join("guide");
+        fs::create_dir_all(&guide_dir).unwrap();
+
+        fs::write(guide_dir.join("01-intro.md"), "---\ntitle: Intro\n---\n").unwrap();
+        // No non-md files
+
+        let out_dir = tmp.path().join("out");
+        let pages = vec![Page {
+            frontmatter: Frontmatter { title: "Intro".into(), order: 1, status: None },
+            html_content: String::new(),
+            url: "/guide/01-intro/".into(),
+            out_path: out_dir.join("guide").join("01-intro").join("index.html"),
+            rel_path: "guide/01-intro.md".into(),
+            section: "guide".into(),
+        }];
+
+        let colocated = collect_colocated_files(&pages_dir, &pages).unwrap();
+        assert!(colocated.is_empty());
+    }
+
+    #[test]
+    fn test_colocated_hidden_files_excluded() {
+        let tmp = tempfile::tempdir().unwrap();
+        let pages_dir = tmp.path().join("pages");
+        let guide_dir = pages_dir.join("guide");
+        fs::create_dir_all(&guide_dir).unwrap();
+
+        fs::write(guide_dir.join("01-intro.md"), "---\ntitle: Intro\n---\n").unwrap();
+        fs::write(guide_dir.join(".hidden"), "secret").unwrap();
+        fs::write(guide_dir.join("visible.png"), "fake-png").unwrap();
+
+        let out_dir = tmp.path().join("out");
+        let pages = vec![Page {
+            frontmatter: Frontmatter { title: "Intro".into(), order: 1, status: None },
+            html_content: String::new(),
+            url: "/guide/01-intro/".into(),
+            out_path: out_dir.join("guide").join("01-intro").join("index.html"),
+            rel_path: "guide/01-intro.md".into(),
+            section: "guide".into(),
+        }];
+
+        let colocated = collect_colocated_files(&pages_dir, &pages).unwrap();
+        assert_eq!(colocated.len(), 1);
+        assert!(colocated[0].src_path.to_string_lossy().contains("visible.png"));
+    }
+
+    #[test]
+    fn test_colocated_multi_lang_output_path() {
+        let tmp = tempfile::tempdir().unwrap();
+        let pages_dir = tmp.path().join("pages");
+        let guide_dir = pages_dir.join("guide");
+        fs::create_dir_all(&guide_dir).unwrap();
+
+        fs::write(guide_dir.join("01-intro.md"), "---\ntitle: Intro\n---\n").unwrap();
+        fs::write(guide_dir.join("screenshot.png"), "fake-png").unwrap();
+
+        // Multi-lang: output path includes lang directory
+        let out_dir = tmp.path().join("out");
+        let pages = vec![Page {
+            frontmatter: Frontmatter { title: "Intro".into(), order: 1, status: None },
+            html_content: String::new(),
+            url: "/en/guide/01-intro/".into(),
+            out_path: out_dir.join("en").join("guide").join("01-intro").join("index.html"),
+            rel_path: "guide/01-intro.md".into(),
+            section: "guide".into(),
+        }];
+
+        let colocated = collect_colocated_files(&pages_dir, &pages).unwrap();
+        assert_eq!(colocated.len(), 1);
+        assert_eq!(
+            colocated[0].out_path,
+            out_dir.join("en").join("guide").join("01-intro").join("screenshot.png")
+        );
     }
 }

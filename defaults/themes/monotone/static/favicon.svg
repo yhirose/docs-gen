@@ -1,12 +1,15 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="-1 -1 26 26" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
   <style>
-    path, circle { stroke: #333; }
+    path { stroke: #333; }
     @media (prefers-color-scheme: dark) {
-      path, circle { stroke: #e0e0e0; }
+      path { stroke: #e0e0e0; }
     }
   </style>
-  <path d="M12 19l7-7 3 3-7 7-3-3z"/>
-  <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/>
-  <path d="M2 2l7.586 7.586"/>
-  <circle cx="11" cy="11" r="2"/>
+  <!-- Open rounded square frame (like feather-square) -->
+  <path d="M7.6 12.5H5a2 2 0 0 0-2 2v6.8a2 2 0 0 0 2 2h9.5a2 2 0 0 0 2-2v-5.5" fill="none" transform="translate(-0.5, -1)"/>
+  <!-- Quill pen -->
+  <g transform="translate(3, 1) rotate(-20, 12, 12)">
+    <path d="M7 12l8.5-8.5 6.5 0L16.5 9H10z"/>
+    <path d="M7 12L4.5 14.5"/>
+  </g>
 </svg>

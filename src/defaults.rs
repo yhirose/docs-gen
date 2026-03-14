@@ -14,7 +14,7 @@ static DEFAULTS_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/defaults");
 /// A built-in theme definition.
 pub struct BuiltinTheme {
     pub templates: Vec<(&'static str, &'static str)>,
-    pub static_files: Vec<(&'static str, &'static str)>,
+    pub static_files: Vec<(&'static str, &'static [u8])>,
     pub config_toml: &'static str,
 }
 
@@ -63,14 +63,12 @@ pub fn builtin_theme(name: &str) -> Option<BuiltinTheme> {
 }
 
 /// Recursively collect files under a Dir, building relative paths.
-fn collect_static_files(dir: &'static Dir<'static>, prefix: &str) -> Vec<(&'static str, &'static str)> {
+fn collect_static_files(dir: &'static Dir<'static>, prefix: &str) -> Vec<(&'static str, &'static [u8])> {
     let mut result = Vec::new();
 
     for file in dir.files() {
-        if let (Some(name), Some(content)) = (
-            file.path().file_name().and_then(|n| n.to_str()),
-            file.contents_utf8(),
-        ) {
+        if let Some(name) = file.path().file_name().and_then(|n| n.to_str()) {
+            let content = file.contents();
             if prefix.is_empty() {
                 result.push((name, content));
             } else {
@@ -104,14 +102,14 @@ pub fn default_templates(theme_name: &str) -> Vec<(&'static str, &'static str)> 
 }
 
 /// Returns all default static files as (relative_path, content) pairs.
-pub fn default_static_files(theme_name: &str) -> Vec<(&'static str, &'static str)> {
+pub fn default_static_files(theme_name: &str) -> Vec<(&'static str, &'static [u8])> {
     builtin_theme(theme_name)
         .map(|t| t.static_files)
         .unwrap_or_default()
 }
 
 /// Returns all init scaffold files for the given theme as (relative_path, content) pairs.
-pub fn init_files(theme_name: &str) -> Vec<(&'static str, &'static str)> {
+pub fn init_files(theme_name: &str) -> Vec<(&'static str, &'static [u8])> {
     if builtin_theme(theme_name).is_none() {
         return vec![];
     }
@@ -120,9 +118,7 @@ pub fn init_files(theme_name: &str) -> Vec<(&'static str, &'static str)> {
 
     // Top-level files (config.toml)
     if let Some(f) = DEFAULTS_DIR.get_file("config.toml") {
-        if let Some(content) = f.contents_utf8() {
-            files.push(("config.toml", content));
-        }
+        files.push(("config.toml", f.contents()));
     }
 
     // Sample pages under defaults/pages/
@@ -137,15 +133,12 @@ pub fn init_files(theme_name: &str) -> Vec<(&'static str, &'static str)> {
 fn collect_init_pages(
     dir: &'static Dir<'static>,
     prefix: &str,
-    out: &mut Vec<(&'static str, &'static str)>,
+    out: &mut Vec<(&'static str, &'static [u8])>,
 ) {
     for file in dir.files() {
-        if let (Some(name), Some(content)) = (
-            file.path().file_name().and_then(|n| n.to_str()),
-            file.contents_utf8(),
-        ) {
+        if let Some(name) = file.path().file_name().and_then(|n| n.to_str()) {
             let full: &'static str = Box::leak(format!("{}/{}", prefix, name).into_boxed_str());
-            out.push((full, content));
+            out.push((full, file.contents()));
         }
     }
     for sub in dir.dirs() {
@@ -221,25 +214,25 @@ mod tests {
 
 /// Returns theme files for init as (relative_path, content) pairs.
 /// Paths are relative to the project root (e.g. "themes/default/templates/base.html").
-pub fn init_theme_files(theme_name: &str) -> Vec<(String, &'static str)> {
+pub fn init_theme_files(theme_name: &str) -> Vec<(String, &'static [u8])> {
     let theme = match builtin_theme(theme_name) {
         Some(t) => t,
         None => return vec![],
     };
 
-    let mut files: Vec<(String, &'static str)> = Vec::new();
+    let mut files: Vec<(String, &'static [u8])> = Vec::new();
 
     // Theme config.toml
     files.push((
         format!("themes/{}/config.toml", theme_name),
-        theme.config_toml,
+        theme.config_toml.as_bytes(),
     ));
 
     // Templates
     for (name, content) in &theme.templates {
         files.push((
             format!("themes/{}/templates/{}", theme_name, name),
-            content,
+            content.as_bytes(),
         ));
     }
 

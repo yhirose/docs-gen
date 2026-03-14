@@ -32,6 +32,13 @@ my-docs/
 
 You can customize the theme later — see [Customizing Themes](../04-customizing-themes/).
 
+### What to Do First
+
+After init, you'll probably want to:
+
+1. **Edit the homepage** — Open `pages/en/index.md` (or `pages/ja/index.md`) and replace the sample text with your own project description.
+2. **Replace the favicon** — Drop your own `favicon.svg` into `static/` to override the default icon.
+
 ### 2. Preview Locally
 
 ```bash

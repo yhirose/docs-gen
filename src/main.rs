@@ -152,7 +152,8 @@ fn cmd_init(target: &Path, theme_name: &str) -> Result<()> {
         }
         // For config.toml, substitute the theme name
         if rel_path == "config.toml" {
-            let patched = content.replace(
+            let text = std::str::from_utf8(content)?;
+            let patched = text.replace(
                 "theme = \"default\"",
                 &format!("theme = \"{}\"", theme_name),
             );

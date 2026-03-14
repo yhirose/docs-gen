@@ -39,7 +39,8 @@ my-docs/
     │   ├── index.md       # Homepage
     │   ├── users-guide/       # Section (has its own sidebar)
     │   │   ├── index.md
-    │   │   └── *.md           # Pages with frontmatter
+    │   │   ├── *.md           # Pages with frontmatter
+    │   │   └── screenshot.png # Images next to pages (colocation)
     │   └── developers-guide/  # Section for contributors
     │       ├── index.md
     │       └── *.md           # Pages with frontmatter
@@ -98,6 +99,8 @@ docs-gen build my-docs docs
 The `docs/` directory is plain static HTML — deploy it to any hosting service.
 
 > **GitHub Pages:** commit and push `docs/`, then go to **Settings > Pages**, set **Source** to **Deploy from a branch**, and choose your branch with `/docs` folder. See the [Deploying guide](https://yhirose.github.io/docs-gen/users-guide/06-deploying/) for GitHub Actions, Netlify, and other options.
+
+For more details — image handling, multi-language setup, theme customization, and more — see the [User's Guide](https://yhirose.github.io/docs-gen/users-guide/).
 
 ---
 
