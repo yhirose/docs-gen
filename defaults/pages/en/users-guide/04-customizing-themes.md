@@ -17,7 +17,7 @@ docs-gen theme install default my-docs
 
 This copies the theme files into `my-docs/themes/default/` so you can edit them.
 
-> The installed `config.toml` records the docs-gen version used at install time.
+> **Note:** You only need to install a theme if you want to customize it. Without installation, docs-gen uses its built-in theme automatically and picks up improvements when you update docs-gen. Once installed, your local copy takes precedence — to get future updates, you'll need to re-install the theme and reapply your modifications manually.
 
 Once installed, the theme directory looks like this:
 

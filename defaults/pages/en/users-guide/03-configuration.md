@@ -24,9 +24,20 @@ footer_message = "© 2026 My Project."
 
 ### Deployment Scenarios
 
-The `hostname` and `base_path` settings control how URLs are generated. Configure them according to your hosting setup.
+The `hostname` and `base_path` settings control how URLs are generated.
 
-#### Root deployment (custom domain or local)
+#### Local development
+
+For local development, you don't need to set `hostname`. Just set `base_path` to empty:
+
+```toml
+[site]
+base_path = ""
+```
+
+This is the default — `docs-gen serve` works out of the box.
+
+#### Custom domain
 
 If your site is served from the root of a domain (e.g. `https://docs.example.com/`):
 
@@ -36,9 +47,7 @@ hostname = "https://docs.example.com"
 base_path = ""
 ```
 
-> For local development only, you can omit `hostname` entirely and just set `base_path = ""`.
-
-#### Subdirectory deployment (GitHub Pages)
+#### Subdirectory (GitHub Pages)
 
 If your site is hosted under a repository name (e.g. `https://user.github.io/my-project/`):
 
@@ -74,6 +83,17 @@ langs = ["en", "ja"]
 Then create matching page directories under `pages/ja/`.
 
 > A language switcher will appear in the header automatically when multiple languages are configured.
+
+#### Single-language Sites
+
+For a single-language site, set `langs` to just one entry:
+
+```toml
+[system]
+langs = ["en"]
+```
+
+In single-language mode, URLs have no language prefix (e.g. `/guide/` instead of `/en/guide/`), and the language switcher is hidden.
 
 ### Reference
 

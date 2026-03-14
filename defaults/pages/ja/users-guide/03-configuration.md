@@ -24,9 +24,20 @@ footer_message = "© 2026 My Project."
 
 ### デプロイシナリオ
 
-`hostname` と `base_path` の設定がURLの生成方法を決めます。ホスティング環境に合わせて設定してください。
+`hostname` と `base_path` の設定がURLの生成方法を決めます。
 
-#### ルートデプロイ（カスタムドメインやローカル）
+#### ローカル開発
+
+ローカル開発では `hostname` の設定は不要です。`base_path` を空にするだけで動きます:
+
+```toml
+[site]
+base_path = ""
+```
+
+これがデフォルトの状態です。`docs-gen serve` はそのまま動作します。
+
+#### カスタムドメイン
 
 サイトをドメインのルートから配信する場合（例: `https://docs.example.com/`）:
 
@@ -36,9 +47,7 @@ hostname = "https://docs.example.com"
 base_path = ""
 ```
 
-> ローカル開発だけなら、`hostname` を省略して `base_path = ""` だけでもOKです。
-
-#### サブディレクトリデプロイ（GitHub Pages）
+#### サブディレクトリ（GitHub Pages）
 
 リポジトリ名の配下でホスティングする場合（例: `https://user.github.io/my-project/`）:
 
@@ -74,6 +83,17 @@ langs = ["en", "ja"]
 そのあと `pages/ja/` の下に対応するページディレクトリを作ります。
 
 > 複数の言語を設定すると、ヘッダーに言語切り替えボタンが自動で表示されます。
+
+#### 単一言語サイト
+
+単一言語のサイトでは、`langs` にエントリを1つだけ設定します:
+
+```toml
+[system]
+langs = ["en"]
+```
+
+単一言語モードでは、URLに言語プレフィックスが付きません（例: `/en/guide/` ではなく `/guide/`）。言語切り替えボタンも非表示になります。
 
 ### リファレンス
 

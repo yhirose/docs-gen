@@ -15,7 +15,7 @@ There are two ways to deploy to GitHub Pages.
 
 Build locally, commit the output, and let GitHub serve it directly.
 
-1. Set `hostname` and `base_path` in `config.toml`:
+1. Set `hostname` and `base_path` in `config.toml` (see [Configuration — Deployment Scenarios](../03-configuration/#deployment-scenarios) for details):
 
    ```toml
    [site]
@@ -42,7 +42,7 @@ Your site will be available at `https://username.github.io/my-repo/`.
 
 Use this if you prefer not to commit build artifacts. A workflow builds and deploys on every push.
 
-1. Set `hostname` and `base_path` in `config.toml` (same as Option A).
+1. Set `hostname` and `base_path` in `config.toml` (same as Option A above).
 
 2. Add `.github/workflows/docs.yml` to your repository:
 

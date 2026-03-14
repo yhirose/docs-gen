@@ -7,6 +7,16 @@ order: 2
 
 All content lives under `pages/<lang>/` as Markdown files.
 
+### Supported Markdown
+
+docs-gen supports standard [CommonMark](https://commonmark.org/) plus the following extensions:
+
+- **Tables** — pipe-delimited tables with column alignment
+- **Strikethrough** — `~~deleted text~~`
+- **Task lists** — `- [ ] unchecked` and `- [x] checked`
+
+Headings automatically get `id` attributes for anchor links, and code blocks are syntax-highlighted with configurable themes.
+
 ### Frontmatter
 
 Every `.md` file must begin with YAML frontmatter:
@@ -94,7 +104,19 @@ Since each page renders into its own subdirectory (`01-intro/index.html`), use `
 ![Screenshot](../screenshot.jpg)
 ```
 
-**When to use `static/` instead:** Use the `static/` directory for files shared across many pages (e.g. a site logo). Use colocation for files that belong to a specific page or section.
+### The `static/` Directory
+
+The `static/` directory at the project root is for files shared across the entire site — favicons, logos, or global assets. Everything in `static/` is copied to the output root as-is.
+
+```
+my-docs/
+├── static/
+│   ├── favicon.svg       → /favicon.svg
+│   └── logo.png          → /logo.png
+└── pages/
+```
+
+Use `static/` for site-wide files. Use colocation (above) for files that belong to a specific page or section.
 
 ### Image Sizing
 

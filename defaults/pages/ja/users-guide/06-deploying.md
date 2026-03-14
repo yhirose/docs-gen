@@ -15,7 +15,7 @@ GitHub Pages へのデプロイには2つの方法があります。
 
 ローカルでビルドし、出力をコミットして、GitHub に直接配信させます。
 
-1. `config.toml` で `hostname` と `base_path` を設定します:
+1. `config.toml` で `hostname` と `base_path` を設定します（詳細は[設定 — デプロイシナリオ](../03-configuration/#deployment-scenarios)を参照）:
 
    ```toml
    [site]
@@ -42,7 +42,7 @@ GitHub Pages へのデプロイには2つの方法があります。
 
 ビルド成果物をコミットしたくない場合はこちらを使います。プッシュのたびにワークフローがビルドとデプロイを行います。
 
-1. `config.toml` で `hostname` と `base_path` を設定します（方法Aと同じ）。
+1. `config.toml` で `hostname` と `base_path` を設定します（上の方法Aと同じ）。
 
 2. リポジトリに `.github/workflows/docs.yml` を追加します:
 
