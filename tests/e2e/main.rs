@@ -1,6 +1,6 @@
 mod helpers;
 
-use helpers::{base_url, create_driver, setup};
+use helpers::{base_url, lang_base_url, create_driver, setup};
 use thirtyfour::prelude::*;
 use std::time::Duration;
 
@@ -47,7 +47,7 @@ async fn e2e_homepage_loads() -> WebDriverResult<()> {
 #[ignore]
 async fn e2e_guide_index_loads() -> WebDriverResult<()> {
     with_driver(|driver| async move {
-        driver.goto(&format!("{}/users-guide/", base_url())).await?;
+        driver.goto(&format!("{}/users-guide/", lang_base_url())).await?;
 
         let title = driver.title().await?;
         assert!(
@@ -66,7 +66,7 @@ async fn e2e_guide_index_loads() -> WebDriverResult<()> {
 async fn e2e_guide_subpage_loads() -> WebDriverResult<()> {
     with_driver(|driver| async move {
         driver
-            .goto(&format!("{}/users-guide/01-getting-started/", base_url()))
+            .goto(&format!("{}/users-guide/01-getting-started/", lang_base_url()))
             .await?;
 
         let title = driver.title().await?;
@@ -126,7 +126,7 @@ async fn e2e_header_nav_links() -> WebDriverResult<()> {
 #[ignore]
 async fn e2e_sidebar_displayed_on_guide() -> WebDriverResult<()> {
     with_driver(|driver| async move {
-        driver.goto(&format!("{}/users-guide/", base_url())).await?;
+        driver.goto(&format!("{}/users-guide/", lang_base_url())).await?;
 
         let sidebar = driver.find(By::Css("aside.sidebar")).await?;
         assert!(sidebar.is_displayed().await?, "Sidebar should be visible on guide pages");
@@ -186,7 +186,7 @@ async fn e2e_sidebar_not_on_homepage() -> WebDriverResult<()> {
 #[ignore]
 async fn e2e_sidebar_link_navigation() -> WebDriverResult<()> {
     with_driver(|driver| async move {
-        driver.goto(&format!("{}/users-guide/", base_url())).await?;
+        driver.goto(&format!("{}/users-guide/", lang_base_url())).await?;
 
         let link = driver.find(By::LinkText("Getting Started")).await?;
         link.click().await?;
@@ -313,7 +313,7 @@ async fn e2e_guide_page_sequence() -> WebDriverResult<()> {
 
         for (slug, expected_title) in &pages {
             driver
-                .goto(&format!("{}/users-guide/{}/", base_url(), slug))
+                .goto(&format!("{}/users-guide/{}/", lang_base_url(), slug))
                 .await?;
 
             let title = driver.title().await?;
@@ -349,14 +349,17 @@ async fn e2e_internal_links_valid() -> WebDriverResult<()> {
     with_driver(|driver| async move {
         let pages_to_check = [
             format!("{}/", base_url()),
-            format!("{}/users-guide/", base_url()),
-            format!("{}/users-guide/01-getting-started/", base_url()),
+            format!("{}/users-guide/", lang_base_url()),
+            format!("{}/users-guide/01-getting-started/", lang_base_url()),
         ];
 
         let server_origin = format!("http://localhost:{}", 8123);
 
         for page_url in &pages_to_check {
             driver.goto(page_url).await?;
+
+            // Use the actual URL after any redirects (e.g. / → /en/)
+            let actual_url = driver.current_url().await?.to_string();
 
             // Collect hrefs first (as Strings) to avoid stale element references
             // after navigation.
@@ -381,7 +384,7 @@ async fn e2e_internal_links_valid() -> WebDriverResult<()> {
                 } else if href.starts_with("http") {
                     href.clone()
                 } else {
-                    let base = page_url.trim_end_matches('/');
+                    let base = actual_url.trim_end_matches('/');
                     format!("{}/{}", base, href)
                 };
 
@@ -392,7 +395,7 @@ async fn e2e_internal_links_valid() -> WebDriverResult<()> {
                     !text.contains("404 Not Found"),
                     "Broken internal link: {} (from {})",
                     href,
-                    page_url
+                    &actual_url
                 );
             }
         }

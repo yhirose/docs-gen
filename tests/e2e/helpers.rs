@@ -9,6 +9,7 @@ use thirtyfour::prelude::*;
 const SERVER_PORT: u16 = 8123;
 const GECKODRIVER_PORT: u16 = 4444;
 const BASE_PATH: &str = "/docs-gen";
+const DEFAULT_LANG: &str = "en";
 
 // ─── Process management ──────────────────────────────────────
 
@@ -104,9 +105,14 @@ fn wait_for_port(port: u16, timeout: Duration) {
 
 // ─── Public API ──────────────────────────────────────────────
 
-/// Full base URL for the demo site.
+/// Full base URL for the demo site (root, no lang prefix).
 pub fn base_url() -> String {
     format!("http://localhost:{}{}", SERVER_PORT, BASE_PATH)
+}
+
+/// Base URL with default language prefix for content pages.
+pub fn lang_base_url() -> String {
+    format!("http://localhost:{}{}/{}", SERVER_PORT, BASE_PATH, DEFAULT_LANG)
 }
 
 /// Setup: ensure geckodriver + docs-gen serve are running.
