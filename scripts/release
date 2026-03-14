@@ -52,8 +52,9 @@ fi
 # --- Release ---
 
 sed -i '' "s/^version = \".*\"/version = \"$VERSION\"/" Cargo.toml
+sed -i '' "s/^version = \".*\"/version = \"$VERSION\"/" defaults/config.toml
 cargo check --quiet  # update Cargo.lock
-git add Cargo.toml Cargo.lock
+git add Cargo.toml Cargo.lock defaults/config.toml
 git commit -m "Release v$VERSION"
 git tag "v$VERSION"
 git push && git push --tags
