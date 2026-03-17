@@ -1,5 +1,7 @@
 # docs-gen
 
+[![CI](https://github.com/yhirose/docs-gen/actions/workflows/ci.yml/badge.svg)](https://github.com/yhirose/docs-gen/actions/workflows/ci.yml)
+
 A zero-dependency static site generator for documentation.
 Just write Markdown and deploy — no plugins, no runtime, no extra tools required.
 

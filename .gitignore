@@ -1,8 +1,12 @@
-work/
-target/
-plans/
 *.swp
 *.dSYM
 AGENTS.md
 !/.gitattributes
 !/.github
+
+.claude/
+.plans/
+.vscode/
+plans/
+target/
+work/
