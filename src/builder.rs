@@ -24,7 +24,7 @@ struct PageDataEntry {
     url: String,
     lang: String,
     section: String,
-    /// Plain-text body with HTML tags stripped (truncated to ~500 chars).
+    /// Plain-text body with HTML tags stripped, optionally truncated to a configured limit.
     body: String,
 }
 
@@ -161,7 +161,7 @@ pub fn build(src: &Path, out: &Path, theme_override: Option<&str>) -> Result<()>
         for page in &pages {
             // Collect search data for pages-data.json
             let plain_body = strip_html_tags(&remove_light_theme_blocks(&page.html_content));
-            let truncated_body: String = plain_body.chars().take(500).collect();
+            let truncated_body = truncate_for_search(plain_body, config.system.search_max_chars);
             page_data_entries.push(PageDataEntry {
                 title: page.frontmatter.title.clone(),
                 url: page.url.clone(),
@@ -694,6 +694,19 @@ fn remove_light_theme_blocks(html: &str) -> String {
     result
 }
 
+/// Truncate plain text for search indexing. If `max_chars` is 0, return the
+/// full text; otherwise take at most `max_chars` characters.
+fn truncate_for_search(mut text: String, max_chars: usize) -> String {
+    // text.len() is byte length, which is always >= char count,
+    // so this serves as a cheap early-out for short texts.
+    if max_chars > 0 && text.len() > max_chars {
+        if let Some((byte_idx, _)) = text.char_indices().nth(max_chars) {
+            text.truncate(byte_idx);
+        }
+    }
+    text
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -737,6 +750,35 @@ mod tests {
     fn test_remove_light_theme_blocks_no_light() {
         let html = "<div>no light theme here</div>";
         assert_eq!(remove_light_theme_blocks(html), html);
+    }
+
+    #[test]
+    fn test_truncate_for_search_no_limit() {
+        let text = "a".repeat(1000);
+        let result = truncate_for_search(text.clone(), 0);
+        assert_eq!(result.len(), 1000);
+    }
+
+    #[test]
+    fn test_truncate_for_search_with_limit() {
+        let text = "a".repeat(1000);
+        let result = truncate_for_search(text, 100);
+        assert_eq!(result.len(), 100);
+    }
+
+    #[test]
+    fn test_truncate_for_search_shorter_than_limit() {
+        let text = "hello".to_string();
+        let result = truncate_for_search(text, 100);
+        assert_eq!(result, "hello");
+    }
+
+    #[test]
+    fn test_truncate_for_search_multibyte() {
+        // 日本語: each char is multibyte but truncation counts chars, not bytes
+        let text = "あいうえおかきくけこ".to_string(); // 10 chars
+        let result = truncate_for_search(text, 5);
+        assert_eq!(result, "あいうえお");
     }
 
     #[test]

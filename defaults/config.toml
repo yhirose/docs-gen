@@ -13,6 +13,10 @@ theme = "default"
 # Multi-language:    langs = ["en", "ja"]
 langs = ["en", "ja"]
 
+# Maximum number of characters per page indexed for search.
+# 0 (default) means no limit — the full page text is indexed.
+# search_max_chars = 5000
+
 [site]
 # Site title shown in the browser tab and the header.
 title = "docs-gen"

@@ -65,6 +65,10 @@ pub struct System {
     #[serde(default = "default_theme_name")]
     pub theme: String,
     pub langs: Vec<String>,
+    /// Maximum number of characters per page indexed for search.
+    /// 0 means no limit (full text). Defaults to 0.
+    #[serde(default)]
+    pub search_max_chars: usize,
 }
 
 impl System {
@@ -203,6 +207,7 @@ mod tests {
         let system = System {
             theme: "default".into(),
             langs: vec!["ja".into(), "en".into()],
+            search_max_chars: 0,
         };
         assert_eq!(system.default_lang(), "ja");
     }
@@ -212,16 +217,17 @@ mod tests {
         let system = System {
             theme: "default".into(),
             langs: vec![],
+            search_max_chars: 0,
         };
         assert_eq!(system.default_lang(), "en");
     }
 
     #[test]
     fn test_is_single_lang() {
-        let single = System { theme: "default".into(), langs: vec!["en".into()] };
+        let single = System { theme: "default".into(), langs: vec!["en".into()], search_max_chars: 0 };
         assert!(single.is_single_lang());
 
-        let multi = System { theme: "default".into(), langs: vec!["en".into(), "ja".into()] };
+        let multi = System { theme: "default".into(), langs: vec!["en".into(), "ja".into()], search_max_chars: 0 };
         assert!(!multi.is_single_lang());
     }
 
@@ -302,7 +308,7 @@ base_path = "/docs/"
     #[test]
     fn test_highlight_dark_theme_default() {
         let config = SiteConfig {
-            system: System { theme: "default".into(), langs: vec!["en".into()] },
+            system: System { theme: "default".into(), langs: vec!["en".into()], search_max_chars: 0 },
             site: Site {
                 title: "T".into(),
                 version: None,
