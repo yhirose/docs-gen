@@ -28,7 +28,8 @@
   --nav-section-active: #d0d0d0;
 
   /* --- Layout dimensions --- */
-  --content-width: 900px;
+  --layout-max-width: 1280px;
+  --content-width: 960px;
   --sidebar-width: 280px;
   --header-height: 48px;
   --line-height: 1.7;
@@ -239,17 +240,20 @@ a:hover {
 .layout {
   margin-top: var(--header-height);
   display: grid;
-  grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+  grid-template-columns: 1fr 3fr;
+  max-width: var(--layout-max-width);
   min-height: calc(100vh - var(--header-height));
 }
 
 .layout.no-sidebar {
   grid-template-columns: 1fr;
+  max-width: var(--content-width);
+  margin-left: auto;
+  margin-right: auto;
 }
 
 /* ---- Sidebar ---- */
 .sidebar {
-  width: var(--sidebar-width);
   flex-shrink: 0;
   padding: 24px 16px;
   border-right: 1px solid var(--border);
@@ -630,8 +634,8 @@ html[data-theme="light"] .code-block-wrapper > [data-code-theme="light"] {
 
   .sidebar {
     position: fixed;
-    left: calc(-1 * var(--sidebar-width));
-    width: var(--sidebar-width);
+    left: -280px;
+    width: 280px;
     top: var(--header-height);
     height: calc(100vh - var(--header-height));
     background: var(--bg);
