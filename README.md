@@ -115,7 +115,7 @@ For more details — image handling, multi-language setup, theme customization, 
 | `build SRC OUT [--theme NAME]` | Generate static HTML for deployment |
 | `check [SRC] [--fix]` | Check for broken links, duplicate orders, and other issues |
 | `theme list` | List available built-in themes |
-| `theme install NAME [SRC] [--force]` | Install a built-in theme into the project |
+| `theme install NAME [SRC] [--force] [--with-base]` | Install theme style files for customization (add `--with-base` for templates and JS too) |
 
 ---
 

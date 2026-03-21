@@ -9,5 +9,5 @@ This section covers how to work on docs-gen itself.
 
 ## Table of Contents
 
-- [Testing](01-testing/) — Unit tests and end-to-end tests
+- [Development Tools](01-testing/) — justfile commands, testing, and releases
 - [Architecture](02-architecture/) — Module overview and build pipeline

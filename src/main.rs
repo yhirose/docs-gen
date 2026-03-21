@@ -88,6 +88,9 @@ enum ThemeAction {
         /// Force overwrite without confirmation
         #[arg(long)]
         force: bool,
+        /// Also install the base (templates, JS, icons) for customization
+        #[arg(long)]
+        with_base: bool,
     },
 }
 
@@ -118,7 +121,7 @@ fn main() -> Result<()> {
         }
         Some(Command::Theme { action }) => match action {
             ThemeAction::List => cmd_theme_list(),
-            ThemeAction::Install { name, src, force } => cmd_theme_install(&name, &src, force),
+            ThemeAction::Install { name, src, force, with_base } => cmd_theme_install(&name, &src, force, with_base),
         },
         None => {
             Cli::command().print_help()?;
@@ -184,24 +187,25 @@ fn cmd_theme_list() -> Result<()> {
     Ok(())
 }
 
-fn cmd_theme_install(theme_name: &str, target: &Path, force: bool) -> Result<()> {
-    // Validate theme exists
-    if defaults::builtin_theme(theme_name).is_none() {
-        anyhow::bail!(
+fn cmd_theme_install(theme_name: &str, target: &Path, force: bool, with_base: bool) -> Result<()> {
+    // Validate theme exists and resolve base name
+    let base_name = defaults::base_name_for_theme(theme_name).ok_or_else(|| {
+        anyhow::anyhow!(
             "Unknown theme '{}'. Available themes: {}",
             theme_name,
             defaults::builtin_theme_names().join(", ")
-        );
-    }
+        )
+    })?;
 
-    let theme_dir = target.join("themes").join(theme_name);
+    let style_dir = target.join("styles").join(theme_name);
+    let base_dir = target.join("bases").join(&base_name);
 
-    // Check if theme already exists
-    if theme_dir.exists() && !force {
+    // Check if style already exists
+    if style_dir.exists() && !force {
         print!(
             "Theme '{}' already exists at {}. Overwrite? [y/N] ",
             theme_name,
-            theme_dir.display()
+            style_dir.display()
         );
         io::stdout().flush()?;
         let mut answer = String::new();
@@ -214,7 +218,25 @@ fn cmd_theme_install(theme_name: &str, target: &Path, force: bool) -> Result<()>
 
     let mut created = 0usize;
 
-    for (rel_path, content) in defaults::init_theme_files(theme_name) {
+    // Install base files only when --with-base is specified
+    if with_base {
+        if base_dir.exists() && !force {
+            println!("Base '{}' already installed, skipping.", base_name);
+        } else {
+            for (rel_path, content) in defaults::init_base_files(&base_name) {
+                let dest = target.join(&rel_path);
+                if let Some(parent) = dest.parent() {
+                    fs::create_dir_all(parent)?;
+                }
+                fs::write(&dest, content)?;
+                println!("Installed: {}", dest.display());
+                created += 1;
+            }
+        }
+    }
+
+    // Install style-specific files
+    for (rel_path, content) in defaults::init_style_files(theme_name) {
         let dest = target.join(&rel_path);
         if let Some(parent) = dest.parent() {
             fs::create_dir_all(parent)?;
@@ -225,7 +247,7 @@ fn cmd_theme_install(theme_name: &str, target: &Path, force: bool) -> Result<()>
     }
 
     // Record the docs-gen version used to install this theme.
-    let config_path = target.join("themes").join(theme_name).join("config.toml");
+    let config_path = target.join("styles").join(theme_name).join("config.toml");
     if config_path.exists() {
         let mut config_content = fs::read_to_string(&config_path)?;
         config_content.push_str(&format!(

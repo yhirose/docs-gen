@@ -26,7 +26,7 @@ src/
 When `docs-gen build src out` runs, the pipeline is:
 
 1. **Load config** — `config.rs` reads `config.toml` and merges theme config (project override or built-in default).
-2. **Set up Tera** — `builder.rs` registers built-in templates, then overlays any project-level templates from `themes/<name>/templates/` and `templates/`.
+2. **Set up Tera** — `builder.rs` registers built-in templates, then overlays any project-level templates from `bases/<name>/templates/` and `templates/`.
 3. **Collect pages** — For each language, walk `pages/<lang>/`, parse frontmatter and render Markdown to HTML.
 4. **Build navigation** — Group pages by section, sort by `order` then filename, and build the sidebar tree.
 5. **Render templates** — Each page gets a Tera context (`site`, `page`, `nav`, `content`, etc.) and is rendered through either `portal.html` or `page.html`.
@@ -38,7 +38,8 @@ When `docs-gen build src out` runs, the pipeline is:
 
 `defaults.rs` uses `include_dir!` to embed the entire `defaults/` directory at compile time:
 
-- **Themes** (`defaults/themes/`) — Templates, CSS, JS, and config for each built-in theme. Adding a new directory here automatically registers a new theme with no code changes.
+- **Bases** (`defaults/bases/`) — Templates, JS, and icons — the shared layout foundation.
+- **Styles** (`defaults/styles/`) — CSS and config for each built-in theme. Adding a new directory here automatically registers a new theme with no code changes.
 - **Scaffold files** (`defaults/config.toml`, `defaults/pages/`) — Copied during `docs-gen init` to bootstrap a new project.
 
 ### Development Server

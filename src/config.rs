@@ -7,9 +7,12 @@ use std::path::Path;
 pub struct SiteConfig {
     pub system: System,
     pub site: Site,
-    /// Theme-level highlight settings (loaded from theme config, not site config).
+    /// Style-level highlight settings (loaded from style config, not site config).
     #[serde(skip)]
     pub highlight: Option<Highlight>,
+    /// Resolved base name for the active theme (loaded from style config).
+    #[serde(skip)]
+    pub base: String,
     #[serde(default)]
     pub nav: Vec<NavLink>,
 }
@@ -18,10 +21,18 @@ fn default_theme_name() -> String {
     "default".to_string()
 }
 
-/// Theme-specific configuration loaded from `themes/<name>/config.toml`.
+/// Style-specific configuration loaded from `styles/<name>/config.toml`.
 #[derive(Debug, Deserialize, Default)]
-pub struct ThemeConfig {
+pub struct StyleConfig {
+    pub system: Option<StyleSystemConfig>,
     pub highlight: Option<Highlight>,
+}
+
+/// `[system]` section within a style's config.toml.
+#[derive(Debug, Deserialize, Default)]
+pub struct StyleSystemConfig {
+    /// Which base this theme uses (e.g. "standard").
+    pub base: Option<String>,
 }
 
 /// A navigation link entry defined in config.toml under [[nav]].
@@ -114,36 +125,37 @@ impl SiteConfig {
         let bp = config.site.base_path.trim_end_matches('/').to_string();
         config.site.base_path = bp;
 
-        // Load theme config
-        let theme_config = Self::load_theme_config(src_dir, &config.system.theme)?;
-        config.highlight = theme_config.highlight;
+        // Load style config
+        let style_config = Self::load_style_config(src_dir, &config.system.theme)?;
+        config.base = style_config.system.and_then(|s| s.base).unwrap_or_else(|| defaults::DEFAULT_BASE.to_string());
+        config.highlight = style_config.highlight;
 
         Ok(config)
     }
 
-    /// Load theme-specific config.toml. Tries:
-    /// 1. `<src_dir>/themes/<theme>/config.toml` (user project)
+    /// Load style-specific config.toml. Tries:
+    /// 1. `<src_dir>/styles/<theme>/config.toml` (user project)
     /// 2. Built-in theme defaults
-    fn load_theme_config(src_dir: &Path, theme_name: &str) -> Result<ThemeConfig> {
-        let theme_config_path = src_dir.join("themes").join(theme_name).join("config.toml");
-        if theme_config_path.exists() {
-            let content = std::fs::read_to_string(&theme_config_path)
-                .with_context(|| format!("Failed to read {}", theme_config_path.display()))?;
-            let tc: ThemeConfig = toml::from_str(&content)
-                .with_context(|| format!("Failed to parse {}", theme_config_path.display()))?;
-            return Ok(tc);
+    fn load_style_config(src_dir: &Path, theme_name: &str) -> Result<StyleConfig> {
+        let style_config_path = src_dir.join("styles").join(theme_name).join("config.toml");
+        if style_config_path.exists() {
+            let content = std::fs::read_to_string(&style_config_path)
+                .with_context(|| format!("Failed to read {}", style_config_path.display()))?;
+            let sc: StyleConfig = toml::from_str(&content)
+                .with_context(|| format!("Failed to parse {}", style_config_path.display()))?;
+            return Ok(sc);
         }
 
         // Fall back to built-in theme
         if let Some(builtin) = defaults::builtin_theme(theme_name) {
-            let tc: ThemeConfig = toml::from_str(builtin.config_toml)
-                .with_context(|| format!("Failed to parse built-in theme config for '{}'", theme_name))?;
-            return Ok(tc);
+            let sc: StyleConfig = toml::from_str(builtin.config_toml)
+                .with_context(|| format!("Failed to parse built-in style config for '{}'", theme_name))?;
+            return Ok(sc);
         }
 
         // Unknown theme: return empty config (no highlight settings)
         eprintln!("Warning: theme '{}' not found, using defaults", theme_name);
-        Ok(ThemeConfig::default())
+        Ok(StyleConfig::default())
     }
 
     pub fn highlight_dark_theme(&self) -> &str {
@@ -317,6 +329,7 @@ base_path = "/docs/"
                 footer_message: None,
             },
             highlight: None,
+            base: defaults::DEFAULT_BASE.into(),
             nav: vec![],
         };
         assert_eq!(config.highlight_dark_theme(), "base16-ocean.dark");

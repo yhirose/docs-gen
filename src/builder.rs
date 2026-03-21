@@ -71,7 +71,7 @@ pub fn build(src: &Path, out: &Path, theme_override: Option<&str>) -> Result<()>
     let single_lang = config.system.is_single_lang();
 
     // Build Tera: start with embedded defaults, then override with user templates
-    let tera = build_tera(src, &config.system.theme)?;
+    let tera = build_tera(src, &config.system.theme, &config.base)?;
 
     // Clean output directory
     if out.exists() {
@@ -79,13 +79,19 @@ pub fn build(src: &Path, out: &Path, theme_override: Option<&str>) -> Result<()>
     }
     fs::create_dir_all(out)?;
 
-    // Copy static files: theme defaults first, then user overrides on top
+    // Copy static files in cascade order: builtin → user base → user style → site
     copy_default_static(out, &config.system.theme)?;
-    // Copy theme static from project themes/ dir (user may have customized)
-    let theme_static_dir = src.join("themes").join(&config.system.theme).join("static");
-    if theme_static_dir.exists() {
-        copy_dir_recursive(&theme_static_dir, out)?;
+    // User-defined base static (if any)
+    let user_base_static = src.join("bases").join(&config.base).join("static");
+    if user_base_static.exists() {
+        copy_dir_recursive(&user_base_static, out)?;
     }
+    // User style static (if any)
+    let style_static_dir = src.join("styles").join(&config.system.theme).join("static");
+    if style_static_dir.exists() {
+        copy_dir_recursive(&style_static_dir, out)?;
+    }
+    // Site-level static (if any)
     let static_dir = src.join("static");
     if static_dir.exists() {
         copy_dir_recursive(&static_dir, out)?;
@@ -572,52 +578,45 @@ fn generate_root_redirect(out: &Path, config: &SiteConfig) -> Result<()> {
     Ok(())
 }
 
-/// Build Tera with embedded default templates, then override with any files
-/// found in `<src>/templates/`.
-fn build_tera(src: &Path, theme_name: &str) -> Result<Tera> {
+/// Register all `.html` templates from a directory into Tera (later registrations override earlier).
+fn register_templates_from_dir(tera: &mut Tera, dir: &Path) -> Result<()> {
+    if !dir.exists() {
+        return Ok(());
+    }
+    for entry in WalkDir::new(dir)
+        .into_iter()
+        .filter_map(|e| e.ok())
+        .filter(|e| e.path().extension().map_or(false, |ext| ext == "html"))
+    {
+        let path = entry.path();
+        let rel = path.strip_prefix(dir)?;
+        let name = rel.to_string_lossy().replace('\\', "/");
+        let source = fs::read_to_string(path)
+            .with_context(|| format!("Failed to read template {}", path.display()))?;
+        tera.add_raw_template(&name, &source)
+            .with_context(|| format!("Failed to register template '{}'", name))?;
+    }
+    Ok(())
+}
+
+/// Build Tera with 4-level cascade: builtin (base+style) → user base → user style → site.
+fn build_tera(src: &Path, theme_name: &str, base_name: &str) -> Result<Tera> {
     let mut tera = Tera::default();
 
-    // Register embedded defaults for the selected theme
+    // 1. Builtin defaults (base + style already merged)
     for (name, source) in defaults::default_templates(theme_name) {
         tera.add_raw_template(name, source)
             .with_context(|| format!("Failed to add default template '{}'", name))?;
     }
 
-    // Override with theme templates from project (if any)
-    let theme_templates_dir = src.join("themes").join(theme_name).join("templates");
-    if theme_templates_dir.exists() {
-        for entry in WalkDir::new(&theme_templates_dir)
-            .into_iter()
-            .filter_map(|e| e.ok())
-            .filter(|e| e.path().extension().map_or(false, |ext| ext == "html"))
-        {
-            let path = entry.path();
-            let rel = path.strip_prefix(&theme_templates_dir)?;
-            let name = rel.to_string_lossy().replace('\\', "/");
-            let source = fs::read_to_string(path)
-                .with_context(|| format!("Failed to read template {}", path.display()))?;
-            tera.add_raw_template(&name, &source)
-                .with_context(|| format!("Failed to register template '{}'", name))?;
-        }
-    }
+    // 2. User-defined base templates (if any)
+    register_templates_from_dir(&mut tera, &src.join("bases").join(base_name).join("templates"))?;
 
-    // Override with user-provided templates (if any)
-    let templates_dir = src.join("templates");
-    if templates_dir.exists() {
-        for entry in WalkDir::new(&templates_dir)
-            .into_iter()
-            .filter_map(|e| e.ok())
-            .filter(|e| e.path().extension().map_or(false, |ext| ext == "html"))
-        {
-            let path = entry.path();
-            let rel = path.strip_prefix(&templates_dir)?;
-            let name = rel.to_string_lossy().replace('\\', "/");
-            let source = fs::read_to_string(path)
-                .with_context(|| format!("Failed to read template {}", path.display()))?;
-            tera.add_raw_template(&name, &source)
-                .with_context(|| format!("Failed to register template '{}'", name))?;
-        }
-    }
+    // 3. User style templates (if any)
+    register_templates_from_dir(&mut tera, &src.join("styles").join(theme_name).join("templates"))?;
+
+    // 4. Site-level templates (if any)
+    register_templates_from_dir(&mut tera, &src.join("templates"))?;
 
     Ok(tera)
 }

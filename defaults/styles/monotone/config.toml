@@ -1,8 +1,11 @@
-# Syntax highlight settings for code blocks.
+# Style configuration for "monotone" theme.
 #
 # To customize the theme, copy it into your project first:
-#   docs-gen theme install default <project-dir>
+#   docs-gen theme install monotone <project-dir>
 # Then edit this file freely.
+
+[system]
+base = "standard"
 
 [highlight]
 # Code highlight theme for dark mode. Required.
