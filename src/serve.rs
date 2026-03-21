@@ -365,15 +365,16 @@ fn hex_val(b: u8) -> Option<u8> {
     }
 }
 
-/// Create a TCP listener with SO_REUSEADDR (and SO_REUSEPORT on Unix) set,
-/// so that rapid restarts after Ctrl+C don't fail with "address in use".
+/// Create a TCP listener with SO_REUSEADDR set so that rapid restarts after
+/// Ctrl+C don't fail with "address in use" (handles TIME_WAIT sockets).
+/// Note: SO_REUSEPORT is intentionally NOT set — if another process is already
+/// listening on the same port, we want the bind to fail with a clear error.
 fn create_reuse_listener(port: u16) -> Result<TcpListener> {
     let socket = Socket::new(Domain::IPV4, Type::STREAM, Some(Protocol::TCP))?;
     socket.set_reuse_address(true)?;
-    #[cfg(unix)]
-    socket.set_reuse_port(true)?;
     let addr: std::net::SocketAddr = format!("0.0.0.0:{}", port).parse()?;
-    socket.bind(&addr.into())?;
+    socket.bind(&addr.into())
+        .with_context(|| format!("Port {} is already in use. Is another docs-gen process running?", port))?;
     socket.listen(128)?;
     Ok(socket.into())
 }
