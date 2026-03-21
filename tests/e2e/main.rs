@@ -406,7 +406,96 @@ async fn e2e_internal_links_valid() -> WebDriverResult<()> {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  8. Footer
+//  8. Mobile header menu toggle
+// ═══════════════════════════════════════════════════════════════
+
+#[tokio::test]
+#[ignore]
+async fn e2e_mobile_header_menu_toggle() -> WebDriverResult<()> {
+    with_driver(|driver| async move {
+        // Set mobile viewport
+        driver.set_window_rect(0, 0, 375, 812).await?;
+        driver.goto(&format!("{}/", base_url())).await?;
+        tokio::time::sleep(Duration::from_millis(500)).await;
+
+        // ☰ menu button should be visible on mobile
+        let menu_btn = driver.find(By::Css(".header-menu-toggle")).await?;
+        assert!(menu_btn.is_displayed().await?, "Header menu toggle should be visible on mobile");
+
+        // Dropdown should be hidden initially
+        let dropdown = driver.find(By::Css(".header-dropdown")).await?;
+        assert!(!dropdown.is_displayed().await?, "Header dropdown should be hidden initially");
+
+        // Click menu button → dropdown should open
+        menu_btn.click().await?;
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        assert!(dropdown.is_displayed().await?, "Header dropdown should be visible after clicking menu toggle");
+
+        // Nav links should be visible inside dropdown
+        let nav_links = driver.find_all(By::Css(".header-dropdown .header-nav a")).await?;
+        assert!(
+            nav_links.len() >= 3,
+            "Dropdown should contain at least 3 nav links, got {}",
+            nav_links.len()
+        );
+
+        // Tools (search, theme) should be visible inside dropdown
+        let tools = driver.find(By::Css(".header-dropdown .header-tools")).await?;
+        assert!(tools.is_displayed().await?, "Header tools should be visible in open dropdown");
+
+        // Click outside → dropdown should close
+        let body = driver.find(By::Css("body")).await?;
+        body.click().await?;
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        assert!(!dropdown.is_displayed().await?, "Header dropdown should close after clicking outside");
+
+        Ok(())
+    })
+    .await
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  9. Mobile sidebar toggle
+// ═══════════════════════════════════════════════════════════════
+
+#[tokio::test]
+#[ignore]
+async fn e2e_mobile_sidebar_toggle() -> WebDriverResult<()> {
+    with_driver(|driver| async move {
+        // Set mobile viewport
+        driver.set_window_rect(0, 0, 375, 812).await?;
+        driver.goto(&format!("{}/users-guide/", lang_base_url())).await?;
+        tokio::time::sleep(Duration::from_millis(500)).await;
+
+        // Sidebar toggle button should be visible on guide pages
+        let sidebar_btn = driver.find(By::Css(".sidebar-toggle")).await?;
+        assert!(sidebar_btn.is_displayed().await?, "Sidebar toggle should be visible on mobile guide pages");
+
+        // Sidebar should be hidden initially on mobile
+        let sidebar = driver.find(By::Css("aside.sidebar")).await?;
+        let class = sidebar.attr("class").await?.unwrap_or_default();
+        assert!(!class.contains("open"), "Sidebar should not have 'open' class initially");
+
+        // Click sidebar toggle → sidebar should open
+        sidebar_btn.click().await?;
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        let class = sidebar.attr("class").await?.unwrap_or_default();
+        assert!(class.contains("open"), "Sidebar should have 'open' class after clicking toggle");
+
+        // Click outside → sidebar should close
+        // Use JavaScript click on body since the sidebar overlay obscures other elements
+        driver.execute("document.querySelector('main.content').click()", vec![]).await?;
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        let class = sidebar.attr("class").await?.unwrap_or_default();
+        assert!(!class.contains("open"), "Sidebar should close after clicking outside");
+
+        Ok(())
+    })
+    .await
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  10. Footer
 // ═══════════════════════════════════════════════════════════════
 
 #[tokio::test]

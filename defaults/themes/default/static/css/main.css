@@ -96,6 +96,7 @@ a:hover {
   align-items: center;
   padding: 0 16px;
   gap: 24px;
+  position: relative;
 }
 
 .header-title {
@@ -112,6 +113,20 @@ a:hover {
 
 .header-spacer {
   flex: 1;
+}
+
+.header-menu-toggle {
+  display: none;
+  background: none;
+  border: none;
+  color: var(--text);
+  cursor: pointer;
+  padding: 4px;
+  line-height: 0;
+}
+
+.header-dropdown {
+  display: contents;
 }
 
 .header-nav {
@@ -195,9 +210,9 @@ a:hover {
   background: none;
   border: none;
   color: var(--text);
-  font-size: 1.2rem;
   cursor: pointer;
-  padding: 4px 8px;
+  padding: 4px;
+  line-height: 0;
 }
 
 /* Draft banner */
@@ -232,7 +247,6 @@ a:hover {
 
 /* Sidebar */
 .sidebar {
-  flex-shrink: 0;
   padding: 24px 16px;
   border-right: 1px solid var(--bg-secondary);
   position: sticky;
@@ -592,8 +606,8 @@ html[data-theme="light"] .code-block-wrapper > [data-code-theme="light"] {
 
   .sidebar {
     position: fixed;
-    left: -280px;
-    width: 280px;
+    left: calc(-1 * var(--sidebar-width));
+    width: var(--sidebar-width);
     top: var(--header-height);
     height: calc(100vh - var(--header-height));
     background: var(--bg);
@@ -613,22 +627,51 @@ html[data-theme="light"] .code-block-wrapper > [data-code-theme="light"] {
   .content {
     padding: 24px 16px;
   }
-}
 
-@media (max-width: 480px) {
-  :root {
-    --header-height: 44px;
+  /* Header hamburger menu */
+  .header-menu-toggle {
+    display: block;
   }
 
-  .header-inner {
-    padding: 0 12px;
-    gap: 12px;
+  .header-dropdown {
+    display: none;
+    position: absolute;
+    top: var(--header-height);
+    left: 0;
+    right: 0;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border);
+    z-index: 200;
+    flex-direction: column;
+  }
+
+  .header-dropdown.open {
+    display: flex;
+  }
+
+  .header-nav {
+    flex-direction: column;
+    gap: 0;
+    padding: 8px 0;
   }
 
   .header-nav a {
-    font-size: 0.8rem;
+    padding: 10px 16px;
+    font-size: 1rem;
   }
 
+  .header-nav a:hover {
+    background: var(--bg);
+  }
+
+  .header-tools {
+    padding: 8px 16px;
+    border-top: 1px solid var(--border);
+    gap: 8px;
+  }
+}
+
+@media (max-width: 480px) {
   .content article h1 {
     font-size: 1.4rem;
   }

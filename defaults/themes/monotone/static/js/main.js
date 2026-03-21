@@ -62,6 +62,24 @@
   });
 })();
 
+// Header hamburger menu toggle
+(function () {
+  var toggle = document.querySelector('.header-menu-toggle');
+  var dropdown = document.querySelector('.header-dropdown');
+  if (!toggle || !dropdown) return;
+
+  toggle.addEventListener('click', function (e) {
+    e.stopPropagation();
+    dropdown.classList.toggle('open');
+  });
+
+  document.addEventListener('click', function (e) {
+    if (!dropdown.contains(e.target) && !toggle.contains(e.target)) {
+      dropdown.classList.remove('open');
+    }
+  });
+})();
+
 // Mobile sidebar toggle
 (function () {
   var toggle = document.querySelector('.sidebar-toggle');
@@ -73,7 +91,7 @@
   });
 
   document.addEventListener('click', function (e) {
-    if (!sidebar.contains(e.target) && e.target !== toggle) {
+    if (!sidebar.contains(e.target) && !toggle.contains(e.target)) {
       sidebar.classList.remove('open');
     }
   });

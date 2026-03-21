@@ -168,9 +168,7 @@ fn build_and_copy(
     };
 
     // Clean target and copy
-    if target.exists() {
-        fs::remove_dir_all(&target).ok();
-    }
+    fs::remove_dir_all(&target).ok();
     copy_dir_recursive(build_out, &target)?;
 
     // Inject live-reload script into all HTML files
@@ -372,7 +370,7 @@ fn hex_val(b: u8) -> Option<u8> {
 fn create_reuse_listener(port: u16) -> Result<TcpListener> {
     let socket = Socket::new(Domain::IPV4, Type::STREAM, Some(Protocol::TCP))?;
     socket.set_reuse_address(true)?;
-    let addr: std::net::SocketAddr = format!("0.0.0.0:{}", port).parse()?;
+    let addr = std::net::SocketAddrV4::new(std::net::Ipv4Addr::UNSPECIFIED, port);
     socket.bind(&addr.into())
         .with_context(|| format!("Port {} is already in use. Is another docs-gen process running?", port))?;
     socket.listen(128)?;
