@@ -358,6 +358,7 @@ fn collect_colocated_files(
     struct DirInfo {
         md_count: usize,
         has_index: bool,
+        index_out_dir: Option<PathBuf>,
         page_out_dir: Option<PathBuf>,
     }
 
@@ -373,11 +374,15 @@ fn collect_colocated_files(
         let info = dirs.entry(dir).or_insert(DirInfo {
             md_count: 0,
             has_index: false,
+            index_out_dir: None,
             page_out_dir: None,
         });
         info.md_count += 1;
         if page.rel_path.ends_with("index.md") {
             info.has_index = true;
+            if let Some(out_dir) = page.out_path.parent() {
+                info.index_out_dir = Some(out_dir.to_path_buf());
+            }
         }
         // out_path is e.g. out/guide/01-intro/index.html — parent gives the page's output dir
         if let Some(page_out_dir) = page.out_path.parent() {
@@ -412,8 +417,8 @@ fn collect_colocated_files(
         // Determine output directory for this colocated file
         let out_dir = if let Some(info) = dirs.get(&file_dir) {
             if info.has_index {
-                // Directory has index.md → copy to the section output directory
-                info.page_out_dir.clone()
+                // Directory has index.md → copy to the index page's output directory
+                info.index_out_dir.clone()
             } else if info.md_count == 1 {
                 // Single .md file → copy into that page's output directory
                 info.page_out_dir.clone()
