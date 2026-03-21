@@ -296,6 +296,14 @@ mod tests {
     }
 
     #[test]
+    fn test_render_image_with_fragment() {
+        let renderer = MarkdownRenderer::new("base16-ocean.dark", None);
+        let html = renderer.render("![Desktop App](app.png#large-center)");
+        eprintln!("IMAGE HTML: {}", html);
+        assert!(html.contains("app.png#large-center"));
+    }
+
+    #[test]
     fn test_render_table() {
         let renderer = MarkdownRenderer::new("base16-ocean.dark", None);
         let md = "| A | B |\n|---|---|\n| 1 | 2 |";

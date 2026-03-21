@@ -393,7 +393,7 @@ html[data-theme="light"] .content article img {
 .content article img[src$='#half-center']  { max-width: 50%; }
 .content article img[src$='#large'],
 .content article img[src$='#large-center'] { max-width: 80%; }
-.content article img[src*='#center'] { display: block; margin-inline: auto; }
+.content article img[src*='-center'] { display: block; margin: 16px auto; }
 
 /* Code block theme switching: show dark by default, swap on light mode */
 .code-block-wrapper > [data-code-theme="light"] {
