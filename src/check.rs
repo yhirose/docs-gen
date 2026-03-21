@@ -13,6 +13,7 @@ use walkdir::WalkDir;
 pub enum Severity {
     Warning,
     Error,
+    Fixed,
 }
 
 #[derive(Debug, Clone)]
@@ -20,6 +21,7 @@ pub struct Diagnostic {
     pub severity: Severity,
     pub file: String,
     pub message: String,
+    pub hint: Option<String>,
 }
 
 impl std::fmt::Display for Diagnostic {
@@ -27,8 +29,13 @@ impl std::fmt::Display for Diagnostic {
         let tag = match self.severity {
             Severity::Warning => "[warn]",
             Severity::Error => "[error]",
+            Severity::Fixed => "[fixed]",
         };
-        write!(f, "{} {}: {}", tag, self.file, self.message)
+        write!(f, "{} {}: {}", tag, self.file, self.message)?;
+        if let Some(hint) = &self.hint {
+            write!(f, "\n  hint: {}", hint)?;
+        }
+        Ok(())
     }
 }
 
@@ -50,13 +57,19 @@ struct CheckPage {
 
 /// Run all checks on the given source directory.
 /// Returns `Ok(true)` if errors were found, `Ok(false)` if clean.
-pub fn run(src: &Path) -> Result<bool> {
+pub fn run(src: &Path, fix: bool) -> Result<bool> {
     let config = SiteConfig::load(src, None)?;
 
     let mut diagnostics: Vec<Diagnostic> = Vec::new();
 
-    let default_lang = config.system.langs.first().map(|s| s.as_str()).unwrap_or("en");
+    let default_lang = config.system.default_lang();
     let default_pages_dir = src.join("pages").join(default_lang);
+
+    // Collect all language page directories for cross-language image hints
+    let all_lang_dirs: Vec<(String, PathBuf)> = config.system.langs.iter()
+        .map(|l| (l.clone(), src.join("pages").join(l)))
+        .filter(|(_, p)| p.exists())
+        .collect();
 
     for lang in &config.system.langs {
         let pages_dir = src.join("pages").join(lang);
@@ -73,7 +86,11 @@ pub fn run(src: &Path) -> Result<bool> {
 
         // Link checks — for non-default languages, fall back to default lang dir for images
         let fallback_dir = if lang != default_lang { Some(default_pages_dir.as_path()) } else { None };
-        check_internal_links(&pages, &pages_dir, lang, fallback_dir, &mut diagnostics);
+        let other_lang_dirs: Vec<(&str, &Path)> = all_lang_dirs.iter()
+            .filter(|(l, _)| l != lang)
+            .map(|(l, p)| (l.as_str(), p.as_path()))
+            .collect();
+        check_internal_links(&pages, &pages_dir, lang, fallback_dir, &other_lang_dirs, fix, &mut diagnostics);
 
         // Unreferenced page check
         check_unreferenced_pages(&pages, &pages_dir, lang, &mut diagnostics);
@@ -82,17 +99,26 @@ pub fn run(src: &Path) -> Result<bool> {
     // Report
     let errors = diagnostics.iter().filter(|d| d.severity == Severity::Error).count();
     let warnings = diagnostics.iter().filter(|d| d.severity == Severity::Warning).count();
+    let fixed = diagnostics.iter().filter(|d| d.severity == Severity::Fixed).count();
 
     for d in &diagnostics {
         eprintln!("{}", d);
     }
 
-    if errors > 0 || warnings > 0 {
+    let remaining = errors + warnings;
+    if fixed > 0 || remaining > 0 {
         eprintln!();
-        eprintln!(
-            "{} error(s), {} warning(s) found.",
-            errors, warnings
-        );
+        let mut parts = Vec::new();
+        if fixed > 0 {
+            parts.push(format!("{} fixed", fixed));
+        }
+        if errors > 0 {
+            parts.push(format!("{} error(s)", errors));
+        }
+        if warnings > 0 {
+            parts.push(format!("{} warning(s)", warnings));
+        }
+        eprintln!("{}", parts.join(", "));
     } else {
         println!("All checks passed.");
     }
@@ -178,6 +204,7 @@ fn check_order_duplicates(pages: &[CheckPage], lang: &str, diags: &mut Vec<Diagn
                         "duplicate order {} in: {}",
                         order, file_list
                     ),
+                    hint: None,
                 });
             }
         }
@@ -197,6 +224,7 @@ fn check_order_unset(pages: &[CheckPage], lang: &str, diags: &mut Vec<Diagnostic
                 severity: Severity::Warning,
                 file: format!("[{}] {}", lang, page.rel_path),
                 message: "order is not set (defaults to 0)".to_string(),
+                hint: None,
             });
         }
     }
@@ -209,35 +237,29 @@ fn check_internal_links(
     pages_dir: &Path,
     lang: &str,
     fallback_pages_dir: Option<&Path>,
+    other_lang_dirs: &[(&str, &Path)],
+    fix: bool,
     diags: &mut Vec<Diagnostic>,
 ) {
+    let mut fixes: HashMap<PathBuf, Vec<(String, String)>> = HashMap::new();
+
     for page in pages {
         let links = extract_links(&page.body);
-
-            // Non-index pages render as slug/index.html, so relative links in
-            // the rendered site are resolved from a virtual subdirectory.
-            // e.g. guide/01-intro.md → guide/01-intro/index.html
-            //       link "../02-other/" resolves from guide/01-intro/ → guide/02-other/
-            let page_dir = if page.rel_path.ends_with("index.md") {
-                page.abs_path.parent().unwrap_or(pages_dir).to_path_buf()
-            } else {
-                let stem = page.abs_path.file_stem().unwrap_or_default();
-                page.abs_path.parent().unwrap_or(pages_dir).join(stem)
-            };
+        let is_index = page.rel_path.ends_with("index.md");
+        let page_dir = virtual_page_dir(page, pages_dir);
 
         for (dest, is_image) in links {
-            // Skip external links
-            if dest.starts_with("http://")
-                || dest.starts_with("https://")
-                || dest.starts_with("mailto:")
-                || dest.starts_with("tel:")
-                || dest.starts_with('#')
-            {
+            if is_external_link(&dest) {
                 continue;
             }
 
             // Strip anchor fragment
             let dest_no_anchor = dest.split('#').next().unwrap_or(&dest);
+            let anchor = if dest.contains('#') {
+                &dest[dest_no_anchor.len()..]
+            } else {
+                ""
+            };
             if dest_no_anchor.is_empty() {
                 continue;
             }
@@ -289,15 +311,125 @@ fn check_internal_links(
                         Severity::Error
                     };
                     let kind = if is_image { "image" } else { "link" };
+
+                    let hint = generate_link_hint(
+                        !is_index, is_image, dest_no_anchor, anchor,
+                        &resolved, pages_dir, other_lang_dirs,
+                    );
+
+                    if fix {
+                        if let Some(LinkHint::DidYouMean { suggested }) = &hint {
+                            let old_markup = format!("]({})", dest);
+                            let new_markup = format!("]({})", suggested);
+                            fixes.entry(page.abs_path.clone())
+                                .or_default()
+                                .push((old_markup, new_markup));
+
+                            diags.push(Diagnostic {
+                                severity: Severity::Fixed,
+                                file: format!("[{}] {}", lang, page.rel_path),
+                                message: format!("broken {} target: {} -> {}", kind, dest, suggested),
+                                hint: None,
+                            });
+                            continue;
+                        }
+                    }
+
                     diags.push(Diagnostic {
                         severity,
                         file: format!("[{}] {}", lang, page.rel_path),
                         message: format!("broken {} target: {}", kind, dest),
+                        hint: hint.map(|h| h.to_message()),
                     });
                 }
             }
         }
     }
+
+    // Apply collected fixes
+    for (path, replacements) in &fixes {
+        if let Ok(content) = fs::read_to_string(path) {
+            let mut updated = content;
+            for (old, new) in replacements {
+                updated = updated.replace(old, new);
+            }
+            if let Err(e) = fs::write(path, updated) {
+                eprintln!("warning: failed to write fix to {}: {}", path.display(), e);
+            }
+        }
+    }
+}
+
+// ── Link hint types ─────────────────────────────────────────────────────────
+
+enum LinkHint {
+    /// The reference needs a `../` prefix (non-index page virtual directory issue).
+    /// Auto-fixable with `--fix`.
+    DidYouMean { suggested: String },
+    /// The image exists in another language's directory.
+    FoundInLang { lang: String, target_dir: String },
+}
+
+impl LinkHint {
+    fn to_message(&self) -> String {
+        match self {
+            LinkHint::DidYouMean { suggested } => format!(
+                "did you mean \"{}\"? (non-index pages resolve from a virtual subdirectory)",
+                suggested
+            ),
+            LinkHint::FoundInLang { lang, target_dir } => format!(
+                "found in lang \"{}\" -- copy to {}/",
+                lang, target_dir
+            ),
+        }
+    }
+}
+
+/// Generate a hint for a broken link/image diagnostic.
+fn generate_link_hint(
+    is_non_index: bool,
+    is_image: bool,
+    dest_no_anchor: &str,
+    anchor: &str,
+    resolved: &Path,
+    pages_dir: &Path,
+    other_lang_dirs: &[(&str, &Path)],
+) -> Option<LinkHint> {
+    // For non-index pages, check if "../<filename>" resolves
+    // (the file is in the same source directory but the virtual subdirectory
+    //  means the reference needs an extra "../")
+    if is_non_index && !dest_no_anchor.starts_with("../") {
+        if let Some(parent_resolved) = resolved.parent().and_then(|p| p.parent()) {
+            let candidate = parent_resolved.join(resolved.file_name().unwrap_or_default());
+            if candidate.exists() {
+                let suggested = format!("../{}{}", dest_no_anchor, anchor);
+                return Some(LinkHint::DidYouMean { suggested });
+            }
+        }
+    }
+
+    // For images, check if the file exists in another language
+    if is_image {
+        if let Ok(rel) = resolved.strip_prefix(pages_dir) {
+            for (other_lang, other_dir) in other_lang_dirs {
+                if other_dir.join(rel).exists() {
+                    let lang_name = pages_dir.file_name()
+                        .map(|n| n.to_string_lossy().to_string())
+                        .unwrap_or_default();
+                    let target_dir = match rel.parent() {
+                        Some(p) if !p.as_os_str().is_empty() => format!("{}/{}", lang_name, p.display()),
+                        _ => lang_name,
+                    };
+                    return Some(LinkHint::FoundInLang {
+                        lang: other_lang.to_string(),
+                        target_dir,
+                    });
+                }
+            }
+        }
+    }
+
+    None
 }
 
 // ── Unreferenced page check ─────────────────────────────────────────────────
@@ -316,21 +448,10 @@ fn check_unreferenced_pages(
 
     for page in pages {
         let links = extract_links(&page.body);
-
-        let page_dir = if page.rel_path.ends_with("index.md") {
-            page.abs_path.parent().unwrap_or(pages_dir).to_path_buf()
-        } else {
-            let stem = page.abs_path.file_stem().unwrap_or_default();
-            page.abs_path.parent().unwrap_or(pages_dir).join(stem)
-        };
+        let page_dir = virtual_page_dir(page, pages_dir);
 
         for (dest, _is_image) in links {
-            if dest.starts_with("http://")
-                || dest.starts_with("https://")
-                || dest.starts_with("mailto:")
-                || dest.starts_with("tel:")
-                || dest.starts_with('#')
-            {
+            if is_external_link(&dest) {
                 continue;
             }
 
@@ -387,8 +508,29 @@ fn check_unreferenced_pages(
                 severity: Severity::Warning,
                 file: format!("[{}] {}", lang, page.rel_path),
                 message: "page is not referenced by any link".to_string(),
+                hint: None,
             });
         }
+    }
+}
+
+fn is_external_link(dest: &str) -> bool {
+    dest.starts_with("http://")
+        || dest.starts_with("https://")
+        || dest.starts_with("mailto:")
+        || dest.starts_with("tel:")
+        || dest.starts_with('#')
+}
+
+/// Compute the virtual page directory for link resolution.
+/// Non-index pages render as `slug/index.html`, so relative links resolve
+/// from a virtual subdirectory that doesn't exist on disk.
+fn virtual_page_dir(page: &CheckPage, pages_dir: &Path) -> PathBuf {
+    if page.rel_path.ends_with("index.md") {
+        page.abs_path.parent().unwrap_or(pages_dir).to_path_buf()
+    } else {
+        let stem = page.abs_path.file_stem().unwrap_or_default();
+        page.abs_path.parent().unwrap_or(pages_dir).join(stem)
     }
 }
 
@@ -542,7 +684,7 @@ mod tests {
         }];
 
         let mut diags = Vec::new();
-        check_internal_links(&pages, tmp.path(), "en", None, &mut diags);
+        check_internal_links(&pages, tmp.path(), "en", None, &[], false, &mut diags);
         assert_eq!(diags.len(), 1);
         assert_eq!(diags[0].severity, Severity::Error);
         assert!(diags[0].message.contains("broken link"));
@@ -693,7 +835,7 @@ mod tests {
         }];
 
         let mut diags = Vec::new();
-        check_internal_links(&pages, tmp.path(), "en", None, &mut diags);
+        check_internal_links(&pages, tmp.path(), "en", None, &[], false, &mut diags);
         assert!(diags.is_empty(), "Valid colocated image should not produce diagnostics, got: {:?}", diags);
     }
 
@@ -716,7 +858,7 @@ mod tests {
         }];
 
         let mut diags = Vec::new();
-        check_internal_links(&pages, tmp.path(), "en", None, &mut diags);
+        check_internal_links(&pages, tmp.path(), "en", None, &[], false, &mut diags);
         assert_eq!(diags.len(), 1);
         assert_eq!(diags[0].severity, Severity::Warning);
         assert!(diags[0].message.contains("broken image"));
@@ -749,7 +891,7 @@ mod tests {
         }];
 
         let mut diags = Vec::new();
-        check_internal_links(&pages, tmp.path(), "en", None, &mut diags);
+        check_internal_links(&pages, tmp.path(), "en", None, &[], false, &mut diags);
         assert!(diags.is_empty());
     }
 
@@ -781,12 +923,103 @@ mod tests {
 
         // Without fallback → warning
         let mut diags = Vec::new();
-        check_internal_links(&pages, &ja_dir, "ja", None, &mut diags);
+        check_internal_links(&pages, &ja_dir, "ja", None, &[], false, &mut diags);
         assert_eq!(diags.len(), 1, "Should warn without fallback");
 
         // With fallback to en → no warning
         let mut diags = Vec::new();
-        check_internal_links(&pages, &ja_dir, "ja", Some(&en_dir), &mut diags);
+        check_internal_links(&pages, &ja_dir, "ja", Some(&en_dir), &[], false, &mut diags);
         assert!(diags.is_empty(), "Should not warn when image exists in default lang, got: {:?}", diags);
+    }
+
+    #[test]
+    fn test_hint_missing_parent_prefix() {
+        // Non-index page references "img.png" but needs "../img.png"
+        let tmp = tempfile::tempdir().unwrap();
+        let guide_dir = tmp.path().join("guide");
+        fs::create_dir_all(&guide_dir).unwrap();
+
+        let page_path = guide_dir.join("page.md");
+        fs::write(&page_path, "").unwrap();
+        fs::write(guide_dir.join("screenshot.png"), "fake-png").unwrap();
+
+        let pages = vec![CheckPage {
+            frontmatter: Frontmatter { title: "Test".into(), order: 1, status: None },
+            body: "![img](screenshot.png#half)".to_string(),
+            rel_path: "guide/page.md".to_string(),
+            abs_path: page_path,
+            section: "guide".to_string(),
+        }];
+
+        let mut diags = Vec::new();
+        check_internal_links(&pages, tmp.path(), "en", None, &[], false, &mut diags);
+        assert_eq!(diags.len(), 1);
+        assert!(diags[0].hint.is_some(), "Should have a hint");
+        let hint = diags[0].hint.as_ref().unwrap();
+        assert!(hint.contains("../screenshot.png#half"), "Hint should suggest ../screenshot.png#half, got: {}", hint);
+        assert!(hint.contains("virtual subdirectory"), "Hint should explain why");
+    }
+
+    #[test]
+    fn test_hint_image_in_other_lang() {
+        let tmp = tempfile::tempdir().unwrap();
+
+        // en has no image, ja has it
+        let en_guide = tmp.path().join("en").join("guide");
+        let ja_guide = tmp.path().join("ja").join("guide");
+        fs::create_dir_all(&en_guide).unwrap();
+        fs::create_dir_all(&ja_guide).unwrap();
+        fs::write(ja_guide.join("diagram.png"), "fake-png").unwrap();
+
+        let page_path = en_guide.join("index.md");
+        fs::write(&page_path, "").unwrap();
+
+        let en_dir = tmp.path().join("en");
+
+        let pages = vec![CheckPage {
+            frontmatter: Frontmatter { title: "Guide".into(), order: 0, status: None },
+            body: "![dia](diagram.png)".to_string(),
+            rel_path: "guide/index.md".to_string(),
+            abs_path: page_path,
+            section: "guide".to_string(),
+        }];
+
+        let ja_path = tmp.path().join("ja");
+        let other_langs: Vec<(&str, &Path)> = vec![("ja", ja_path.as_path())];
+
+        let mut diags = Vec::new();
+        check_internal_links(&pages, &en_dir, "en", None, &other_langs, false, &mut diags);
+        assert_eq!(diags.len(), 1);
+        assert!(diags[0].hint.is_some(), "Should have a hint about other lang");
+        let hint = diags[0].hint.as_ref().unwrap();
+        assert!(hint.contains("\"ja\""), "Hint should mention ja, got: {}", hint);
+    }
+
+    #[test]
+    fn test_fix_adds_parent_prefix() {
+        let tmp = tempfile::tempdir().unwrap();
+        let guide_dir = tmp.path().join("guide");
+        fs::create_dir_all(&guide_dir).unwrap();
+
+        let page_path = guide_dir.join("page.md");
+        fs::write(&page_path, "![img](screenshot.png#half)").unwrap();
+        fs::write(guide_dir.join("screenshot.png"), "fake-png").unwrap();
+
+        let pages = vec![CheckPage {
+            frontmatter: Frontmatter { title: "Test".into(), order: 1, status: None },
+            body: "![img](screenshot.png#half)".to_string(),
+            rel_path: "guide/page.md".to_string(),
+            abs_path: page_path.clone(),
+            section: "guide".to_string(),
+        }];
+
+        let mut diags = Vec::new();
+        check_internal_links(&pages, tmp.path(), "en", None, &[], true, &mut diags);
+        assert_eq!(diags.len(), 1);
+        assert_eq!(diags[0].severity, Severity::Fixed);
+
+        // Verify the file was actually modified
+        let content = fs::read_to_string(&page_path).unwrap();
+        assert!(content.contains("](../screenshot.png#half)"), "File should be fixed, got: {}", content);
     }
 }

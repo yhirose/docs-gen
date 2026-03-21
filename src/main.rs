@@ -63,6 +63,9 @@ enum Command {
         /// Source directory containing config.toml
         #[arg(default_value = ".")]
         src: PathBuf,
+        /// Automatically fix safe issues (e.g. missing ../ in image paths)
+        #[arg(long)]
+        fix: bool,
     },
     /// Manage themes
     Theme {
@@ -99,8 +102,8 @@ fn main() -> Result<()> {
         Some(Command::Serve { src, port, open, theme }) => {
             serve::serve(&src, port, open, theme.as_deref())
         }
-        Some(Command::Check { src }) => {
-            match check::run(&src) {
+        Some(Command::Check { src, fix }) => {
+            match check::run(&src, fix) {
                 Ok(has_errors) => {
                     if has_errors {
                         std::process::exit(1);
