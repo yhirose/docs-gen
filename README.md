@@ -7,6 +7,11 @@ Just write Markdown and deploy — no plugins, no runtime, no extra tools requir
 
 **Documentation:** <https://yhirose.github.io/docs-gen/>
 
+The following books are built with this tool:
+
+* ["A Tour of cpp-httplib"](https://yhirose.github.io/cpp-httplib/en/tour/).
+* ["Building a Desktop LLM App with cpp-httplib"](https://yhirose.github.io/cpp-httplib/en/llm-app/).
+
 ## Main Features
 
 - Built-in themes (dark/light)
