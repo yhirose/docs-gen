@@ -7,18 +7,18 @@ Just write Markdown and deploy — no plugins, no runtime, no extra tools requir
 
 **Documentation:** <https://yhirose.github.io/docs-gen/>
 
-The following books are built with this tool:
+The following sites are built with this tool:
 
-* ["A Tour of cpp-httplib"](https://yhirose.github.io/cpp-httplib/en/tour/).
-* ["Building a Desktop LLM App with cpp-httplib"](https://yhirose.github.io/cpp-httplib/en/llm-app/).
+* [A Tour of cpp-httplib](https://yhirose.github.io/cpp-httplib/en/tour/)
+* [Building a Desktop LLM App with cpp-httplib](https://yhirose.github.io/cpp-httplib/en/llm-app/).
 
 ## Main Features
 
-- Built-in themes (dark/light)
-- Live-reload development server
-- Syntax highlighting
-- Client-side full-text search
-- Multi-language support
+* Built-in themes (dark/light)
+* Live-reload development server
+* Syntax highlighting
+* Client-side full-text search
+* Multi-language support
 
 ## Installation
 
@@ -64,7 +64,7 @@ The `serve` command watches your files and automatically reloads the browser whe
 
 ### 3. Edit config.toml
 
-Update the settings for your site. The generated file includes comments explaining each field. See the [User's Guide](https://yhirose.github.io/docs-gen/users-guide/) for more.
+Update the settings for your site. The generated file includes comments explaining each field. See the [User's Guide](https://yhirose.github.io/docs-gen/en/users-guide/) for more.
 
 ```toml
 [system]
@@ -105,9 +105,9 @@ docs-gen build my-docs docs
 
 The `docs/` directory is plain static HTML — deploy it to any hosting service.
 
-> **GitHub Pages:** commit and push `docs/`, then go to **Settings > Pages**, set **Source** to **Deploy from a branch**, and choose your branch with `/docs` folder. See the [Deploying guide](https://yhirose.github.io/docs-gen/users-guide/06-deploying/) for GitHub Actions, Netlify, and other options.
+> **GitHub Pages:** commit and push `docs/`, then go to **Settings > Pages**, set **Source** to **Deploy from a branch**, and choose your branch with `/docs` folder. See the [Deploying guide](https://yhirose.github.io/docs-gen/en/users-guide/06-deploying/) for GitHub Actions, Netlify, and other options.
 
-For more details — image handling, multi-language setup, theme customization, and more — see the [User's Guide](https://yhirose.github.io/docs-gen/users-guide/).
+For more details — image handling, multi-language setup, theme customization, and more — see the [User's Guide](https://yhirose.github.io/docs-gen/en/users-guide/).
 
 ---
 
@@ -131,19 +131,13 @@ For more details — image handling, multi-language setup, theme customization, 
 | `default` | Dark/light theme with color accents |
 | `monotone` | Calm, sophisticated grayscale-only theme (dark/light) |
 
-Use `--theme NAME` with `init`, `serve`, or `build` to select a theme. See the [Customizing Themes guide](https://yhirose.github.io/docs-gen/users-guide/04-customizing-themes/) for details.
+Use `--theme NAME` with `init`, `serve`, or `build` to select a theme. See the [Customizing Themes guide](https://yhirose.github.io/docs-gen/en/users-guide/04-customizing-themes/) for details.
 
 ---
 
-## Learn More
+## For Theme Developers
 
-- [Writing Pages](https://yhirose.github.io/docs-gen/users-guide/02-writing-pages/) — Markdown features, frontmatter options, and page organization
-- [Configuration](https://yhirose.github.io/docs-gen/users-guide/03-configuration/) — All config.toml settings explained
-- [Customizing Themes](https://yhirose.github.io/docs-gen/users-guide/04-customizing-themes/) — Install and edit themes to match your brand
-- [Checking Your Site](https://yhirose.github.io/docs-gen/users-guide/05-checking-your-site/) — Validate links and order before building
-- [Deploying](https://yhirose.github.io/docs-gen/users-guide/06-deploying/) — GitHub Pages and other hosting services
-- [Creating Themes](https://yhirose.github.io/docs-gen/users-guide/07-creating-themes/) — Build your own theme from scratch
-- [Developer's Guide](https://yhirose.github.io/docs-gen/developers-guide/) — Contributing and working on docs-gen itself
+Want to create your own theme? See the [Creating a Theme](https://yhirose.github.io/docs-gen/en/users-guide/07-creating-themes/) guide. For more on docs-gen internals, see the [Developer's Guide](https://yhirose.github.io/docs-gen/en/developers-guide/).
 
 ---
 
