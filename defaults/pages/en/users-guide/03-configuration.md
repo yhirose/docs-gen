@@ -110,7 +110,7 @@ In single-language mode, URLs have no language prefix (e.g. `/guide/` instead of
 |-----|----------|-------------|
 | `title` | yes | Site title displayed in the header |
 | `version` | no | Version string displayed in the header |
-| `hostname` | no | Base hostname (see [Deployment Scenarios](#deployment-scenarios) above) |
+| `hostname` | no | Base hostname (see [Deployment Scenarios](#deployment-scenarios) and [SEO](#seo) below) |
 | `base_path` | no | URL path prefix (see [Deployment Scenarios](#deployment-scenarios) above) |
 | `footer_message` | no | Footer text |
 
@@ -122,5 +122,15 @@ In single-language mode, URLs have no language prefix (e.g. `/guide/` instead of
 | `path` | no | Internal section path relative to `<lang>/` |
 | `url` | no | External URL (takes precedence over `path`) |
 | `icon_svg` | no | Inline SVG icon markup |
+
+### SEO
+
+When `hostname` is set, docs-gen automatically generates SEO metadata:
+
+- **Canonical URLs** — Each page includes a `<link rel="canonical">` tag to prevent duplicate content issues.
+- **hreflang tags** — In multi-language sites, each page includes `<link rel="alternate" hreflang="...">` tags for all configured languages plus `x-default`. This tells search engines that `/en/` and `/ja/` pages are language variants of the same content, not duplicates.
+- **sitemap.xml** — A sitemap with all page URLs is generated at the site root. For multi-language sites, it includes `xhtml:link` alternates for each language.
+
+These features require no additional configuration beyond setting `hostname`.
 
 Next: [Customizing Themes](../04-customizing-themes/)

@@ -18,7 +18,7 @@ The following sites are built with this tool:
 * Live-reload development server
 * Syntax highlighting
 * Client-side full-text search
-* Multi-language support
+* Multi-language support with SEO (canonical URLs, hreflang, sitemap.xml)
 
 ## Installation
 
