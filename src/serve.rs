@@ -89,6 +89,7 @@ pub fn serve(
     // File watcher
     let (tx, rx) = mpsc::channel();
 
+    let watch_start = std::time::SystemTime::now();
     let mut watcher = notify::recommended_watcher(move |res: Result<Event, notify::Error>| {
         if let Ok(event) = res {
             if event.kind.is_modify() || event.kind.is_create() || event.kind.is_remove() {
@@ -107,7 +108,19 @@ pub fn serve(
                         })
                         .unwrap_or(false)
                 });
-                if !all_temp {
+                if all_temp {
+                    return;
+                }
+                // Ignore stale events for files modified before the watcher
+                // started — macOS FSEvents replays recent filesystem activity.
+                let any_new = event.paths.iter().any(|p| {
+                    p.metadata()
+                        .ok()
+                        .and_then(|m| m.modified().ok())
+                        .map(|t| t >= watch_start)
+                        .unwrap_or(true)
+                });
+                if any_new {
                     let _ = tx.send(());
                 }
             }
