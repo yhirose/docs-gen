@@ -15,6 +15,14 @@ struct PageContext {
     title: String,
     url: String,
     status: Option<String>,
+    canonical_url: Option<String>,
+    alternate_langs: Vec<AlternateLang>,
+}
+
+#[derive(Debug, Serialize)]
+struct AlternateLang {
+    lang: String,
+    url: String,
 }
 
 /// Entry for pages-data.json used by client-side search.
@@ -104,6 +112,8 @@ pub fn build(src: &Path, out: &Path, theme_override: Option<&str>) -> Result<()>
     // Maps to (source_path, output_suffix) for fallback copying to other languages.
     let default_lang = config.system.default_lang();
     let multi_lang = !single_lang;
+    // page.url already includes base_path, so prepend only the hostname for absolute URLs.
+    let hostname = config.site.hostname.as_ref().map(|h| h.trim_end_matches('/'));
     let mut primary_colocated: HashMap<PathBuf, (PathBuf, PathBuf)> = HashMap::new();
 
     // Build each language (default_lang is always first in config.system.langs)
@@ -198,11 +208,20 @@ pub fn build(src: &Path, out: &Path, theme_override: Option<&str>) -> Result<()>
                 format!("/{}", lang)
             };
 
+            let canonical_url = hostname.map(|h| format!("{}{}", h, page.url));
+
+            let alternate_langs = match (hostname, multi_lang) {
+                (Some(h), true) => build_alternate_langs(h, &page.url, lang, &config.system.langs, default_lang),
+                _ => Vec::new(),
+            };
+
             let mut ctx = tera::Context::new();
             ctx.insert("page", &PageContext {
                 title: page.frontmatter.title.clone(),
                 url: page.url.clone(),
                 status: page.frontmatter.status.clone(),
+                canonical_url,
+                alternate_langs,
             });
             ctx.insert("content", &page.html_content);
             ctx.insert("lang", lang);
@@ -255,6 +274,9 @@ pub fn build(src: &Path, out: &Path, theme_override: Option<&str>) -> Result<()>
 
     // Generate root redirect
     generate_root_redirect(out, &config)?;
+
+    // Generate sitemap.xml (only when hostname is configured)
+    generate_sitemap(out, &config, &page_data_entries)?;
 
     println!(
         "Site generated: {} languages, output at {}",
@@ -586,6 +608,83 @@ fn generate_root_redirect(out: &Path, config: &SiteConfig) -> Result<()> {
 
     fs::write(out.join("index.html"), html)?;
     Ok(())
+}
+
+/// Generate sitemap.xml listing all pages with absolute URLs.
+/// Only generated when `hostname` is configured (absolute URLs are required).
+/// For multi-language sites, each URL includes `xhtml:link` alternates for hreflang.
+fn generate_sitemap(out: &Path, config: &SiteConfig, pages: &[PageDataEntry]) -> Result<()> {
+    if config.site.hostname.is_none() {
+        return Ok(());
+    }
+
+    let hostname = config.site.hostname.as_ref().unwrap().trim_end_matches('/');
+    let multi_lang = !config.system.is_single_lang();
+    let default_lang = config.system.default_lang();
+
+    let mut xml = String::from(
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n\
+         <urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\"",
+    );
+
+    if multi_lang {
+        xml.push_str("\n        xmlns:xhtml=\"http://www.w3.org/1999/xhtml\"");
+    }
+
+    xml.push_str(">\n");
+
+    for page in pages {
+        let loc = format!("{}{}", hostname, page.url);
+        xml.push_str("  <url>\n");
+        xml.push_str(&format!("    <loc>{}</loc>\n", escape_xml(&loc)));
+
+        if multi_lang {
+            for alt in build_alternate_langs(hostname, &page.url, &page.lang, &config.system.langs, default_lang) {
+                xml.push_str(&format!(
+                    "    <xhtml:link rel=\"alternate\" hreflang=\"{}\" href=\"{}\"/>\n",
+                    alt.lang,
+                    escape_xml(&alt.url)
+                ));
+            }
+        }
+
+        xml.push_str("  </url>\n");
+    }
+
+    xml.push_str("</urlset>\n");
+
+    fs::write(out.join("sitemap.xml"), xml)?;
+    Ok(())
+}
+
+/// Replace the language segment in a URL path (e.g. `/en/` → `/ja/`).
+fn rewrite_lang_in_url(url: &str, from_lang: &str, to_lang: &str) -> String {
+    url.replacen(&format!("/{}/", from_lang), &format!("/{}/", to_lang), 1)
+}
+
+/// Build alternate-language entries for hreflang, including `x-default`.
+fn build_alternate_langs(hostname: &str, page_url: &str, current_lang: &str, langs: &[String], default_lang: &str) -> Vec<AlternateLang> {
+    let mut alts: Vec<AlternateLang> = langs
+        .iter()
+        .map(|l| AlternateLang {
+            lang: l.clone(),
+            url: format!("{}{}", hostname, rewrite_lang_in_url(page_url, current_lang, l)),
+        })
+        .collect();
+    alts.push(AlternateLang {
+        lang: "x-default".to_string(),
+        url: format!("{}{}", hostname, rewrite_lang_in_url(page_url, current_lang, default_lang)),
+    });
+    alts
+}
+
+/// Escape special XML characters in a string.
+fn escape_xml(s: &str) -> String {
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&apos;")
 }
 
 /// Register all `.html` templates from a directory into Tera (later registrations override earlier).
@@ -989,5 +1088,69 @@ mod tests {
             colocated[0].out_path,
             out_dir.join("en").join("guide").join("01-intro").join("screenshot.png")
         );
+    }
+
+    // ── SEO tests ────────────────────────────────────────────────
+
+    #[test]
+    fn test_escape_xml() {
+        assert_eq!(escape_xml("https://example.com/"), "https://example.com/");
+        assert_eq!(escape_xml("<a&b>"), "&lt;a&amp;b&gt;");
+        assert_eq!(escape_xml("\"x'y\""), "&quot;x&apos;y&quot;");
+    }
+
+    fn make_test_config(hostname: Option<&str>, langs: Vec<&str>, base_path: &str) -> SiteConfig {
+        SiteConfig {
+            system: crate::config::System {
+                theme: "default".into(),
+                langs: langs.into_iter().map(String::from).collect(),
+                search_max_chars: 0,
+            },
+            site: crate::config::Site {
+                title: "Test".into(),
+                version: None,
+                hostname: hostname.map(String::from),
+                base_path: base_path.into(),
+                footer_message: None,
+            },
+            highlight: None,
+            base: crate::defaults::DEFAULT_BASE.into(),
+            nav: vec![],
+        }
+    }
+
+    #[test]
+    fn test_generate_sitemap_skipped_without_hostname() {
+        let tmp = tempfile::tempdir().unwrap();
+        let config = make_test_config(None, vec!["en"], "");
+        let pages = vec![PageDataEntry {
+            title: "Home".into(), url: "/".into(), lang: "en".into(),
+            section: String::new(), body: String::new(),
+        }];
+        generate_sitemap(tmp.path(), &config, &pages).unwrap();
+        assert!(!tmp.path().join("sitemap.xml").exists());
+    }
+
+    #[test]
+    fn test_generate_sitemap_multi_lang_with_hreflang() {
+        let tmp = tempfile::tempdir().unwrap();
+        let config = make_test_config(Some("https://example.com"), vec!["en", "ja"], "/docs");
+        let pages = vec![
+            PageDataEntry {
+                title: "Home".into(), url: "/docs/en/".into(), lang: "en".into(),
+                section: String::new(), body: String::new(),
+            },
+            PageDataEntry {
+                title: "ホーム".into(), url: "/docs/ja/".into(), lang: "ja".into(),
+                section: String::new(), body: String::new(),
+            },
+        ];
+        generate_sitemap(tmp.path(), &config, &pages).unwrap();
+        let content = fs::read_to_string(tmp.path().join("sitemap.xml")).unwrap();
+        assert!(content.contains("<loc>https://example.com/docs/en/</loc>"));
+        assert!(content.contains("<loc>https://example.com/docs/ja/</loc>"));
+        assert!(content.contains("hreflang=\"en\""));
+        assert!(content.contains("hreflang=\"ja\""));
+        assert!(content.contains("hreflang=\"x-default\" href=\"https://example.com/docs/en/\""));
     }
 }

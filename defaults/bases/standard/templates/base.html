@@ -4,7 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{ page.title }} - {{ site.title }}</title>
-  <link rel="icon" type="image/svg+xml" href="{{ site.base_path }}/favicon.svg">
+  {% if page.canonical_url %}<link rel="canonical" href="{{ page.canonical_url | safe }}">
+  {% endif %}{% for alt in page.alternate_langs %}<link rel="alternate" hreflang="{{ alt.lang }}" href="{{ alt.url | safe }}">
+  {% endfor %}<link rel="icon" type="image/svg+xml" href="{{ site.base_path }}/favicon.svg">
   <link rel="stylesheet" href="{{ site.base_path }}/css/main.css">
   <script>
     (function() {
