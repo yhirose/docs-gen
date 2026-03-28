@@ -57,7 +57,7 @@
             </button>
             <ul class="lang-popup">
               {% for l in site.langs %}
-              <li><a href="#" data-lang="{{ l }}">{{ l | upper }}</a></li>
+              <li><a href="{{ page.url | replace(from=lang_prefix ~ '/', to='/' ~ l ~ '/') }}" data-lang="{{ l }}">{{ l | upper }}</a></li>
               {% endfor %}
             </ul>
           </div>

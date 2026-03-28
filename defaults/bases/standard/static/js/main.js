@@ -16,15 +16,9 @@
   popup.addEventListener('click', function (e) {
     var link = e.target.closest('[data-lang]');
     if (!link) return;
-    e.preventDefault();
     var lang = link.getAttribute('data-lang');
     localStorage.setItem('preferred-lang', lang);
-    var basePath = document.documentElement.getAttribute('data-base-path') || '';
-    var path = window.location.pathname;
-    // Strip the base path prefix, swap the lang segment, then re-add base path.
-    var pathWithoutBase = path.slice(basePath.length);
-    var newPath = basePath + pathWithoutBase.replace(/^\/[a-z]{2}\//, '/' + lang + '/');
-    window.location.href = newPath;
+    // Let the browser follow the real href — no need to build the URL in JS.
   });
 })();
 

@@ -552,6 +552,13 @@ fn generate_root_redirect(out: &Path, config: &SiteConfig) -> Result<()> {
     }
 
     let base_path = &config.site.base_path;
+    let lang_links: String = config
+        .system
+        .langs
+        .iter()
+        .map(|l| format!(r#"<li><a href="{base_path}/{lang}/">{lang}</a></li>"#, base_path = base_path, lang = l))
+        .collect::<Vec<_>>()
+        .join("\n");
     let html = format!(
         r#"<!DOCTYPE html>
 <html>
@@ -567,11 +574,14 @@ fn generate_root_redirect(out: &Path, config: &SiteConfig) -> Result<()> {
 <title>Redirecting...</title>
 </head>
 <body>
-<p>Redirecting to <a href="{base_path}/{default_lang}/">{base_path}/{default_lang}/</a>...</p>
+<ul>
+{lang_links}
+</ul>
 </body>
 </html>"#,
         default_lang = config.system.default_lang(),
         base_path = base_path,
+        lang_links = lang_links,
     );
 
     fs::write(out.join("index.html"), html)?;
