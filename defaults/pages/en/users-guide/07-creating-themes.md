@@ -36,6 +36,7 @@ bases/standard/
 # Style: theme-specific files
 styles/default/
 ├── config.toml                # Syntax highlighting settings
+├── DESIGN.md                  # Design intent (for humans and AI agents)
 └── static/
     └── css/main.css           # All styles
 ```
@@ -72,6 +73,7 @@ bases/corporate/
 
 styles/my-theme/
 ├── config.toml
+├── DESIGN.md
 └── static/
     └── css/main.css
 ```
@@ -82,6 +84,7 @@ Edit the files copied into your project:
 
 - `styles/my-theme/static/css/main.css` — Change colors, fonts, layout
 - `styles/my-theme/config.toml` — Change syntax highlighting settings
+- `styles/my-theme/DESIGN.md` — Update the design intent to match your changes
 - `bases/corporate/templates/*.html` — Change HTML structure
 - `bases/corporate/static/js/main.js` — Change dynamic features
 
@@ -171,6 +174,7 @@ Style contains the files that define the theme's visual appearance:
 ```text
 styles/my-theme/
 ├── config.toml       # [system] base = "standard" + highlight settings
+├── DESIGN.md         # Design intent (optional, recommended)
 └── static/
     └── css/main.css  # All styles
 ```
@@ -206,3 +210,15 @@ Dark themes: `base16-ocean.dark`, `base16-eighties.dark`, `base16-mocha.dark`, `
 Light themes: `base16-ocean.light`, `InspiredGitHub`, `Solarized (light)`
 
 When both are set, docs-gen renders each code block twice — once for dark, once for light — and CSS toggles visibility based on the active theme.
+
+#### Writing a DESIGN.md (Recommended)
+
+When you create your own theme, we recommend adding a `DESIGN.md` file at `styles/<your-theme>/DESIGN.md`. It is a plain-text document describing your theme's design intent — its visual philosophy, the semantic meaning of each CSS token, and the rules to preserve when editing.
+
+Writing one is optional — it has no effect on the build — but it pays off in three situations:
+
+1. **Future you** — when you revisit the theme months later and need to remember why you chose a particular color or layout rule.
+2. **Collaborators and forkers** — others can extend your theme without breaking its visual identity.
+3. **AI coding agents** — tools like Claude Code and Cursor will read `DESIGN.md` automatically and produce edits aligned with your design.
+
+Look at `styles/default/DESIGN.md` and `styles/monotone/DESIGN.md` for reference. The format is not enforced — adapt the structure to suit your theme — but they cover the areas most worth documenting: philosophy, color tokens, layout, typography, components, and do's and don'ts.

@@ -131,7 +131,7 @@ For more details — image handling, multi-language setup, theme customization, 
 | `default` | Dark/light theme with color accents |
 | `monotone` | Calm, sophisticated grayscale-only theme (dark/light) |
 
-Use `--theme NAME` with `init`, `serve`, or `build` to select a theme. See the [Customizing Themes guide](https://yhirose.github.io/docs-gen/en/users-guide/04-customizing-themes/) for details.
+Use `--theme NAME` with `init`, `serve`, or `build` to select a theme. Each theme ships with a `DESIGN.md` describing its design intent and customization rules — useful when editing CSS yourself or with an AI coding agent. See the [Customizing Themes guide](https://yhirose.github.io/docs-gen/en/users-guide/04-customizing-themes/) for details.
 
 ---
 

@@ -20,6 +20,7 @@ This copies the CSS and highlight config into your project so you can edit them:
 ```text
 styles/default/
 ├── config.toml       # Syntax highlighting settings
+├── DESIGN.md         # Theme design intent (for humans and AI agents)
 └── static/
     └── css/main.css  # All styles (light/dark themes, layout)
 ```
@@ -55,6 +56,26 @@ Available dark themes: `base16-ocean.dark`, `base16-eighties.dark`, `base16-moch
 Available light themes: `base16-ocean.light`, `InspiredGitHub`, `Solarized (light)`
 
 > When both are set, docs-gen renders each code block twice — once for dark, once for light — and CSS toggles visibility based on the active theme.
+
+### Understanding DESIGN.md
+
+Each built-in theme ships with a `DESIGN.md` file alongside its `config.toml` and CSS. After `docs-gen theme install`, you'll find it at `styles/<theme>/DESIGN.md`.
+
+`DESIGN.md` is a plain-text document describing the theme's design intent:
+
+- The theme's visual philosophy and target feel
+- What each CSS custom property means semantically
+- Layout and typography rules
+- Do's and don'ts when modifying the theme
+- Which file to touch for which kind of change
+
+It is **not read at build time** — the file has no effect on generated output. It exists to help humans and AI coding agents make changes that stay consistent with the theme's original intent.
+
+**How to use it:**
+
+- Before editing `main.css` yourself, skim `DESIGN.md` to understand which tokens are safe to change and which rules to preserve.
+- When asking an AI coding agent (Claude Code, Cursor, etc.) to customize your theme, the agent will read `DESIGN.md` automatically and produce changes aligned with the theme's design.
+- If you heavily customize a theme, update `DESIGN.md` to reflect your new choices so future edits stay coherent.
 
 ### Switching Themes
 

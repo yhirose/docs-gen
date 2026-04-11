@@ -267,12 +267,12 @@ pub fn init_style_files(theme_name: &str) -> Vec<(String, &'static [u8])> {
 
     let mut files: Vec<(String, &'static [u8])> = Vec::new();
 
-    // config.toml
-    if let Some(config_file) = STYLES_DIR.get_file(&format!("{}/config.toml", theme_name)) {
-        if let Some(content) = config_file.contents_utf8() {
+    // Top-level style files (config.toml, DESIGN.md, etc.)
+    for top_file in ["config.toml", "DESIGN.md"] {
+        if let Some(file) = STYLES_DIR.get_file(&format!("{}/{}", theme_name, top_file)) {
             files.push((
-                format!("styles/{}/config.toml", theme_name),
-                content.as_bytes(),
+                format!("styles/{}/{}", theme_name, top_file),
+                file.contents(),
             ));
         }
     }
@@ -392,6 +392,7 @@ mod tests {
         // Style-specific files only — no base files
         assert!(files.iter().any(|(p, _)| p.ends_with("css/main.css")));
         assert!(files.iter().any(|(p, _)| p.ends_with("config.toml")));
+        assert!(files.iter().any(|(p, _)| p.ends_with("DESIGN.md")));
         assert!(!files.iter().any(|(p, _)| p.ends_with("base.html")));
         assert!(!files.iter().any(|(p, _)| p.ends_with("js/main.js")));
         assert!(!files.iter().any(|(p, _)| p.ends_with("favicon.svg")));
