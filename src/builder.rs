@@ -15,6 +15,7 @@ struct PageContext {
     title: String,
     url: String,
     status: Option<String>,
+    description: Option<String>,
     canonical_url: Option<String>,
     alternate_langs: Vec<AlternateLang>,
 }
@@ -34,6 +35,9 @@ struct PageDataEntry {
     section: String,
     /// Plain-text body with HTML tags stripped, optionally truncated to a configured limit.
     body: String,
+    /// Last git commit date of the source file (ISO 8601), for sitemap.xml only.
+    #[serde(skip)]
+    lastmod: Option<String>,
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -60,6 +64,7 @@ struct Page {
     frontmatter: Frontmatter,
     html_content: String,
     url: String,
+    src_path: PathBuf,
     out_path: PathBuf,
     rel_path: String,
     section: String,
@@ -114,6 +119,10 @@ pub fn build(src: &Path, out: &Path, theme_override: Option<&str>) -> Result<()>
     let multi_lang = !single_lang;
     // page.url already includes base_path, so prepend only the hostname for absolute URLs.
     let hostname = config.site.hostname.as_ref().map(|h| h.trim_end_matches('/'));
+
+    // Last git commit date per source file, for sitemap <lastmod>.
+    // Empty when the source directory is not inside a git repository.
+    let git_lastmod = collect_git_lastmod(src);
     let mut primary_colocated: HashMap<PathBuf, (PathBuf, PathBuf)> = HashMap::new();
 
     // Build each language (default_lang is always first in config.system.langs)
@@ -177,6 +186,22 @@ pub fn build(src: &Path, out: &Path, theme_override: Option<&str>) -> Result<()>
         for page in &pages {
             // Collect search data for pages-data.json
             let plain_body = strip_html_tags(&remove_light_theme_blocks(&page.html_content));
+
+            // Meta description: frontmatter wins, otherwise derived from the
+            // intro text (everything before the first code block)
+            let description = page.frontmatter.description.clone().or_else(|| {
+                let intro_html = page
+                    .html_content
+                    .split("<pre")
+                    .next()
+                    .unwrap_or(&page.html_content);
+                auto_description(&strip_html_tags(intro_html), DESCRIPTION_MAX_CHARS)
+            });
+
+            let lastmod = fs::canonicalize(&page.src_path)
+                .ok()
+                .and_then(|p| git_lastmod.get(&p).cloned());
+
             let truncated_body = truncate_for_search(plain_body, config.system.search_max_chars);
             page_data_entries.push(PageDataEntry {
                 title: page.frontmatter.title.clone(),
@@ -184,6 +209,7 @@ pub fn build(src: &Path, out: &Path, theme_override: Option<&str>) -> Result<()>
                 lang: lang.clone(),
                 section: page.section.clone(),
                 body: truncated_body,
+                lastmod,
             });
 
             let template_name = if page.section.is_empty() {
@@ -220,6 +246,7 @@ pub fn build(src: &Path, out: &Path, theme_override: Option<&str>) -> Result<()>
                 title: page.frontmatter.title.clone(),
                 url: page.url.clone(),
                 status: page.frontmatter.status.clone(),
+                description,
                 canonical_url,
                 alternate_langs,
             });
@@ -368,6 +395,7 @@ fn collect_pages(
             frontmatter,
             html_content,
             url,
+            src_path: path.to_path_buf(),
             out_path,
             rel_path: rel_str,
             section,
@@ -638,6 +666,10 @@ fn generate_sitemap(out: &Path, config: &SiteConfig, pages: &[PageDataEntry]) ->
         xml.push_str("  <url>\n");
         xml.push_str(&format!("    <loc>{}</loc>\n", escape_xml(&loc)));
 
+        if let Some(lastmod) = &page.lastmod {
+            xml.push_str(&format!("    <lastmod>{}</lastmod>\n", escape_xml(lastmod)));
+        }
+
         if multi_lang {
             for alt in build_alternate_langs(hostname, &page.url, &page.lang, &config.system.langs, default_lang) {
                 xml.push_str(&format!(
@@ -815,6 +847,89 @@ fn truncate_for_search(mut text: String, max_chars: usize) -> String {
     text
 }
 
+/// Maximum length of an auto-derived meta description.
+const DESCRIPTION_MAX_CHARS: usize = 160;
+
+/// Derive a meta description from plain-text body: the first `max_chars`
+/// characters, cut back to a word boundary when one exists. HTML entities
+/// left over from tag stripping are decoded so the template can re-escape
+/// them without double escaping. Returns `None` for empty bodies so the
+/// template can omit the tag entirely.
+fn auto_description(plain_text: &str, max_chars: usize) -> Option<String> {
+    let decoded = plain_text
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", "\"")
+        .replace("&#39;", "'")
+        .replace("&#x27;", "'")
+        .replace("&amp;", "&");
+    let text = decoded.trim();
+    if text.is_empty() {
+        return None;
+    }
+
+    let char_count = text.chars().count();
+    if char_count <= max_chars {
+        return Some(text.to_string());
+    }
+
+    let (byte_idx, _) = text.char_indices().nth(max_chars).unwrap();
+    let head = &text[..byte_idx];
+
+    // Cut at the last space to avoid splitting a word; texts without spaces
+    // (e.g. Japanese) are cut at the character boundary as is.
+    let cut = head.rfind(' ').unwrap_or(head.len());
+    Some(head[..cut].trim_end().to_string())
+}
+
+/// Map each file in the git repository containing `src` to the committer date
+/// (strict ISO 8601) of the last commit that touched it. Keys are canonical
+/// absolute paths. Returns an empty map when `src` is not inside a git
+/// repository or git is unavailable, in which case sitemap <lastmod> is omitted.
+fn collect_git_lastmod(src: &Path) -> HashMap<PathBuf, String> {
+    let mut map = HashMap::new();
+
+    let toplevel = match std::process::Command::new("git")
+        .arg("-C")
+        .arg(src)
+        .args(["rev-parse", "--show-toplevel"])
+        .output()
+    {
+        Ok(out) if out.status.success() => {
+            PathBuf::from(String::from_utf8_lossy(&out.stdout).trim().to_string())
+        }
+        _ => return map,
+    };
+    let toplevel = fs::canonicalize(&toplevel).unwrap_or(toplevel);
+
+    // One `git log` pass over history: commits are listed newest-first, so the
+    // first commit a file appears in is its last modification.
+    let output = match std::process::Command::new("git")
+        .arg("-C")
+        .arg(src)
+        .args(["-c", "core.quotepath=off", "log", "--format=%x01%cI", "--name-only"])
+        .output()
+    {
+        Ok(out) if out.status.success() => out,
+        _ => return map,
+    };
+
+    let mut current_date: Option<&str> = None;
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    for line in stdout.lines() {
+        if let Some(date) = line.strip_prefix('\u{01}') {
+            current_date = Some(date);
+        } else if !line.is_empty() {
+            if let Some(date) = current_date {
+                map.entry(toplevel.join(line))
+                    .or_insert_with(|| date.to_string());
+            }
+        }
+    }
+
+    map
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -927,8 +1042,9 @@ mod tests {
 
         let out_dir = tmp.path().join("out");
         let pages = vec![Page {
-            frontmatter: Frontmatter { title: "Intro".into(), order: 1, status: None },
+            frontmatter: Frontmatter { title: "Intro".into(), order: 1, status: None, description: None },
             html_content: String::new(),
+            src_path: PathBuf::new(),
             url: "/guide/01-intro/".into(),
             out_path: out_dir.join("guide").join("01-intro").join("index.html"),
             rel_path: "guide/01-intro.md".into(),
@@ -955,8 +1071,9 @@ mod tests {
 
         let out_dir = tmp.path().join("out");
         let pages = vec![Page {
-            frontmatter: Frontmatter { title: "Guide".into(), order: 0, status: None },
+            frontmatter: Frontmatter { title: "Guide".into(), order: 0, status: None, description: None },
             html_content: String::new(),
+            src_path: PathBuf::new(),
             url: "/guide/".into(),
             out_path: out_dir.join("guide").join("index.html"),
             rel_path: "guide/index.md".into(),
@@ -985,16 +1102,18 @@ mod tests {
         let out_dir = tmp.path().join("out");
         let pages = vec![
             Page {
-                frontmatter: Frontmatter { title: "Intro".into(), order: 1, status: None },
+                frontmatter: Frontmatter { title: "Intro".into(), order: 1, status: None, description: None },
                 html_content: String::new(),
+                src_path: PathBuf::new(),
                 url: "/guide/01-intro/".into(),
                 out_path: out_dir.join("guide").join("01-intro").join("index.html"),
                 rel_path: "guide/01-intro.md".into(),
                 section: "guide".into(),
             },
             Page {
-                frontmatter: Frontmatter { title: "Setup".into(), order: 2, status: None },
+                frontmatter: Frontmatter { title: "Setup".into(), order: 2, status: None, description: None },
                 html_content: String::new(),
+                src_path: PathBuf::new(),
                 url: "/guide/02-setup/".into(),
                 out_path: out_dir.join("guide").join("02-setup").join("index.html"),
                 rel_path: "guide/02-setup.md".into(),
@@ -1023,8 +1142,9 @@ mod tests {
 
         let out_dir = tmp.path().join("out");
         let pages = vec![Page {
-            frontmatter: Frontmatter { title: "Intro".into(), order: 1, status: None },
+            frontmatter: Frontmatter { title: "Intro".into(), order: 1, status: None, description: None },
             html_content: String::new(),
+            src_path: PathBuf::new(),
             url: "/guide/01-intro/".into(),
             out_path: out_dir.join("guide").join("01-intro").join("index.html"),
             rel_path: "guide/01-intro.md".into(),
@@ -1048,8 +1168,9 @@ mod tests {
 
         let out_dir = tmp.path().join("out");
         let pages = vec![Page {
-            frontmatter: Frontmatter { title: "Intro".into(), order: 1, status: None },
+            frontmatter: Frontmatter { title: "Intro".into(), order: 1, status: None, description: None },
             html_content: String::new(),
+            src_path: PathBuf::new(),
             url: "/guide/01-intro/".into(),
             out_path: out_dir.join("guide").join("01-intro").join("index.html"),
             rel_path: "guide/01-intro.md".into(),
@@ -1074,8 +1195,9 @@ mod tests {
         // Multi-lang: output path includes lang directory
         let out_dir = tmp.path().join("out");
         let pages = vec![Page {
-            frontmatter: Frontmatter { title: "Intro".into(), order: 1, status: None },
+            frontmatter: Frontmatter { title: "Intro".into(), order: 1, status: None, description: None },
             html_content: String::new(),
+            src_path: PathBuf::new(),
             url: "/en/guide/01-intro/".into(),
             out_path: out_dir.join("en").join("guide").join("01-intro").join("index.html"),
             rel_path: "guide/01-intro.md".into(),
@@ -1125,7 +1247,7 @@ mod tests {
         let config = make_test_config(None, vec!["en"], "");
         let pages = vec![PageDataEntry {
             title: "Home".into(), url: "/".into(), lang: "en".into(),
-            section: String::new(), body: String::new(),
+            section: String::new(), body: String::new(), lastmod: None,
         }];
         generate_sitemap(tmp.path(), &config, &pages).unwrap();
         assert!(!tmp.path().join("sitemap.xml").exists());
@@ -1139,10 +1261,11 @@ mod tests {
             PageDataEntry {
                 title: "Home".into(), url: "/docs/en/".into(), lang: "en".into(),
                 section: String::new(), body: String::new(),
+                lastmod: Some("2026-02-28T14:45:40-05:00".into()),
             },
             PageDataEntry {
                 title: "ホーム".into(), url: "/docs/ja/".into(), lang: "ja".into(),
-                section: String::new(), body: String::new(),
+                section: String::new(), body: String::new(), lastmod: None,
             },
         ];
         generate_sitemap(tmp.path(), &config, &pages).unwrap();
@@ -1152,5 +1275,39 @@ mod tests {
         assert!(content.contains("hreflang=\"en\""));
         assert!(content.contains("hreflang=\"ja\""));
         assert!(content.contains("hreflang=\"x-default\" href=\"https://example.com/docs/en/\""));
+        // lastmod only for the page that has one
+        assert!(content.contains("<lastmod>2026-02-28T14:45:40-05:00</lastmod>"));
+        assert_eq!(content.matches("<lastmod>").count(), 1);
+    }
+
+    #[test]
+    fn test_auto_description_short_text() {
+        assert_eq!(auto_description("Short intro.", 160), Some("Short intro.".into()));
+    }
+
+    #[test]
+    fn test_auto_description_empty() {
+        assert_eq!(auto_description("   ", 160), None);
+    }
+
+    #[test]
+    fn test_auto_description_cuts_at_word_boundary() {
+        let text = "alpha bravo charlie delta";
+        let desc = auto_description(text, 14).unwrap();
+        assert_eq!(desc, "alpha bravo");
+    }
+
+    #[test]
+    fn test_auto_description_no_spaces_cuts_at_char_boundary() {
+        let text = "あいうえおかきくけこ";
+        let desc = auto_description(text, 5).unwrap();
+        assert_eq!(desc, "あいうえお");
+    }
+
+    #[test]
+    fn test_auto_description_decodes_entities() {
+        let text = "Use &quot;set_proxy&quot; &amp; &lt;httplib.h&gt;";
+        let desc = auto_description(text, 160).unwrap();
+        assert_eq!(desc, "Use \"set_proxy\" & <httplib.h>");
     }
 }

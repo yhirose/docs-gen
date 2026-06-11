@@ -589,6 +589,7 @@ mod tests {
                 title: "Test".to_string(),
                 order,
                 status: None,
+                description: None,
             },
             body: body.to_string(),
             rel_path: rel_path.to_string(),
@@ -676,6 +677,7 @@ mod tests {
                 title: "Test".to_string(),
                 order: 1,
                 status: None,
+                description: None,
             },
             body: "[broken](../nonexistent/)".to_string(),
             rel_path: "guide/page.md".to_string(),
@@ -706,21 +708,21 @@ mod tests {
 
         let pages = vec![
             CheckPage {
-                frontmatter: Frontmatter { title: "Guide".into(), order: 0, status: None },
+                frontmatter: Frontmatter { title: "Guide".into(), order: 0, status: None, description: None },
                 body: "[First](01-first/)".to_string(),
                 rel_path: "guide/index.md".to_string(),
                 abs_path: index_path,
                 section: "guide".to_string(),
             },
             CheckPage {
-                frontmatter: Frontmatter { title: "First".into(), order: 1, status: None },
+                frontmatter: Frontmatter { title: "First".into(), order: 1, status: None, description: None },
                 body: "".to_string(),
                 rel_path: "guide/01-first.md".to_string(),
                 abs_path: page1_path,
                 section: "guide".to_string(),
             },
             CheckPage {
-                frontmatter: Frontmatter { title: "Second".into(), order: 2, status: None },
+                frontmatter: Frontmatter { title: "Second".into(), order: 2, status: None, description: None },
                 body: "".to_string(),
                 rel_path: "guide/02-second.md".to_string(),
                 abs_path: page2_path,
@@ -750,14 +752,14 @@ mod tests {
         // Neither index.md is linked, but both should be excluded
         let pages = vec![
             CheckPage {
-                frontmatter: Frontmatter { title: "Home".into(), order: 0, status: None },
+                frontmatter: Frontmatter { title: "Home".into(), order: 0, status: None, description: None },
                 body: "".to_string(),
                 rel_path: "index.md".to_string(),
                 abs_path: index_path,
                 section: "".to_string(),
             },
             CheckPage {
-                frontmatter: Frontmatter { title: "Guide".into(), order: 0, status: None },
+                frontmatter: Frontmatter { title: "Guide".into(), order: 0, status: None, description: None },
                 body: "".to_string(),
                 rel_path: "guide/index.md".to_string(),
                 abs_path: guide_index_path,
@@ -785,21 +787,21 @@ mod tests {
 
         let pages = vec![
             CheckPage {
-                frontmatter: Frontmatter { title: "Guide".into(), order: 0, status: None },
+                frontmatter: Frontmatter { title: "Guide".into(), order: 0, status: None, description: None },
                 body: "[First](01-first/) [Second](02-second/)".to_string(),
                 rel_path: "guide/index.md".to_string(),
                 abs_path: index_path,
                 section: "guide".to_string(),
             },
             CheckPage {
-                frontmatter: Frontmatter { title: "First".into(), order: 1, status: None },
+                frontmatter: Frontmatter { title: "First".into(), order: 1, status: None, description: None },
                 body: "[Second](../02-second/)".to_string(),
                 rel_path: "guide/01-first.md".to_string(),
                 abs_path: page1_path,
                 section: "guide".to_string(),
             },
             CheckPage {
-                frontmatter: Frontmatter { title: "Second".into(), order: 2, status: None },
+                frontmatter: Frontmatter { title: "Second".into(), order: 2, status: None, description: None },
                 body: "".to_string(),
                 rel_path: "guide/02-second.md".to_string(),
                 abs_path: page2_path,
@@ -827,7 +829,7 @@ mod tests {
         // But the actual file is at guide/screenshot.png
         // So the correct reference from a non-index page is ../screenshot.png
         let pages = vec![CheckPage {
-            frontmatter: Frontmatter { title: "Test".into(), order: 1, status: None },
+            frontmatter: Frontmatter { title: "Test".into(), order: 1, status: None, description: None },
             body: "![img](../screenshot.png)".to_string(),
             rel_path: "guide/page.md".to_string(),
             abs_path: page_path,
@@ -850,7 +852,7 @@ mod tests {
         // No screenshot.png file exists
 
         let pages = vec![CheckPage {
-            frontmatter: Frontmatter { title: "Test".into(), order: 1, status: None },
+            frontmatter: Frontmatter { title: "Test".into(), order: 1, status: None, description: None },
             body: "![img](../nonexistent.png)".to_string(),
             rel_path: "guide/page.md".to_string(),
             abs_path: page_path,
@@ -883,6 +885,7 @@ mod tests {
                 title: "Test".to_string(),
                 order: 1,
                 status: None,
+                description: None,
             },
             body: "[valid](../../other/)".to_string(),
             rel_path: "guide/page.md".to_string(),
@@ -914,7 +917,7 @@ mod tests {
         let en_dir = tmp.path().join("en");
 
         let pages = vec![CheckPage {
-            frontmatter: Frontmatter { title: "Test".into(), order: 1, status: None },
+            frontmatter: Frontmatter { title: "Test".into(), order: 1, status: None, description: None },
             body: "![img](../screenshot.png)".to_string(),
             rel_path: "guide/page.md".to_string(),
             abs_path: page_path,
@@ -944,7 +947,7 @@ mod tests {
         fs::write(guide_dir.join("screenshot.png"), "fake-png").unwrap();
 
         let pages = vec![CheckPage {
-            frontmatter: Frontmatter { title: "Test".into(), order: 1, status: None },
+            frontmatter: Frontmatter { title: "Test".into(), order: 1, status: None, description: None },
             body: "![img](screenshot.png#half)".to_string(),
             rel_path: "guide/page.md".to_string(),
             abs_path: page_path,
@@ -977,7 +980,7 @@ mod tests {
         let en_dir = tmp.path().join("en");
 
         let pages = vec![CheckPage {
-            frontmatter: Frontmatter { title: "Guide".into(), order: 0, status: None },
+            frontmatter: Frontmatter { title: "Guide".into(), order: 0, status: None, description: None },
             body: "![dia](diagram.png)".to_string(),
             rel_path: "guide/index.md".to_string(),
             abs_path: page_path,
@@ -1006,7 +1009,7 @@ mod tests {
         fs::write(guide_dir.join("screenshot.png"), "fake-png").unwrap();
 
         let pages = vec![CheckPage {
-            frontmatter: Frontmatter { title: "Test".into(), order: 1, status: None },
+            frontmatter: Frontmatter { title: "Test".into(), order: 1, status: None, description: None },
             body: "![img](screenshot.png#half)".to_string(),
             rel_path: "guide/page.md".to_string(),
             abs_path: page_path.clone(),

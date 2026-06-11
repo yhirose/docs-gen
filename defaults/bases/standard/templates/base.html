@@ -3,7 +3,12 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{{ page.title }} - {{ site.title }}</title>
+  <title>{% if page.title == site.title %}{{ site.title }}{% else %}{{ page.title }} - {{ site.title }}{% endif %}</title>
+  {% if page.description %}<meta name="description" content="{{ page.description }}">
+  {% endif %}<meta property="og:title" content="{{ page.title }}">
+  {% if page.description %}<meta property="og:description" content="{{ page.description }}">
+  {% endif %}{% if page.canonical_url %}<meta property="og:url" content="{{ page.canonical_url | safe }}">
+  {% endif %}<meta property="og:site_name" content="{{ site.title }}">
   {% if page.canonical_url %}<link rel="canonical" href="{{ page.canonical_url | safe }}">
   {% endif %}{% for alt in page.alternate_langs %}<link rel="alternate" hreflang="{{ alt.lang }}" href="{{ alt.url | safe }}">
   {% endfor %}<link rel="icon" type="image/svg+xml" href="{{ site.base_path }}/favicon.svg">

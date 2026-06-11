@@ -11,6 +11,7 @@ pub struct Frontmatter {
     #[serde(default)]
     pub order: i32,
     pub status: Option<String>,
+    pub description: Option<String>,
 }
 
 pub struct MarkdownRenderer {
@@ -229,6 +230,14 @@ mod tests {
         let (fm, _body) = MarkdownRenderer::parse_frontmatter(content).unwrap();
         assert_eq!(fm.title, "Test");
         assert_eq!(fm.order, 0); // default
+        assert_eq!(fm.description, None);
+    }
+
+    #[test]
+    fn test_parse_frontmatter_with_description() {
+        let content = "---\ntitle: Test\ndescription: A short summary.\n---\nContent";
+        let (fm, _) = MarkdownRenderer::parse_frontmatter(content).unwrap();
+        assert_eq!(fm.description.as_deref(), Some("A short summary."));
     }
 
     #[test]

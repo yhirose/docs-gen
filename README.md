@@ -91,6 +91,7 @@ Add `.md` files anywhere under `pages/en/` — they become pages automatically. 
 ---
 title: My New Page
 order: 2            # Unique within the section, controls sidebar order
+description: One-line summary for search engines  # Optional; derived from the intro text when omitted
 ---
 
 Your content here...
